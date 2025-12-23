@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Lock, Download, RefreshCw, Key, FileText, Video, Link as LinkIcon, AlertCircle, Users, CheckCircle, FileCheck, Copy, Check, Clock, LogOut, Award, Briefcase, ChevronRight, PenTool, Search } from 'lucide-react';
 import { WHATSAPP_SUPPORT } from '../constants';
@@ -9,7 +10,7 @@ const Resources: React.FC = () => {
   const [code, setCode] = useState('');
   const [unlockedTransaction, setUnlockedTransaction] = useState<any | null>(null);
   const [error, setError] = useState('');
-  const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   
   const { transactions, currentUser, logoutUser, globalResources } = useStore();
 
@@ -31,7 +32,7 @@ const Resources: React.FC = () => {
     }
   };
 
-  const copyToClipboard = (text: string, id: number) => {
+  const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);

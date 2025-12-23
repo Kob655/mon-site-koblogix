@@ -19,7 +19,7 @@ export interface CartItem {
 }
 
 export interface Transaction {
-  id: number;
+  id: string; // CHANGÉ DE NUMBER A STRING POUR FIREBASE
   name: string;
   phone: string;
   email: string;

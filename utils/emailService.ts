@@ -8,7 +8,13 @@ const PUBLIC_KEY = 'RcGzUnVOBOVP89ROy'; // Ex: user_xxxxx
 
 export const sendEmail = async (templateParams: Record<string, any>) => {
   try {
-  
+    // Note: Si les clés sont invalides, cela échouera silencieusement dans la console
+    // pour ne pas bloquer l'expérience utilisateur, mais vous verrez l'erreur.
+    if (PUBLIC_KEY === 'YOUR_PUBLIC_KEY') {
+        console.warn("EmailJS non configuré : Veuillez mettre à jour utils/emailService.ts");
+        return;
+    }
+
     const response = await emailjs.send(SERVICE_ID, TEMPLATE_ID, templateParams, PUBLIC_KEY);
     console.log('Email envoyé avec succès!', response.status, response.text);
     return response;

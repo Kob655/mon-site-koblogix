@@ -1,55 +1,20 @@
+
 // @refresh reset
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { SessionInfo, Transaction, Notification, User } from '../types';
 import { SESSIONS_DATA as INITIAL_SESSIONS } from '../constants';
-
-// --- UTILS INDEXEDDB (Base de données locale gros volume) ---
-const DB_NAME = 'KOBLOGIX_DB_V5'; 
-const STORE_NAME = 'koblogix_store';
-
-const initDB = (): Promise<IDBDatabase> => {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 5);
-    
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME);
-      }
-    };
-
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-};
-
-const dbSave = async (key: string, data: any) => {
-  try {
-    const db = await initDB();
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    store.put(data, key);
-  } catch (err) {
-    console.error("Erreur sauvegarde DB", err);
-  }
-};
-
-const dbGet = async (key: string): Promise<any> => {
-  try {
-    const db = await initDB();
-    return new Promise((resolve) => {
-      const tx = db.transaction(STORE_NAME, 'readonly');
-      const store = tx.objectStore(STORE_NAME);
-      const req = store.get(key);
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => resolve(null);
-    });
-  } catch (err) {
-    console.error("Erreur lecture DB", err);
-    return null;
-  }
-};
-// -------------------------------------------------------------
+import { db } from '../firebase'; // Import Firebase configuration
+import { 
+  collection, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  doc, 
+  onSnapshot, 
+  query, 
+  orderBy,
+  Timestamp 
+} from 'firebase/firestore';
 
 // Interface pour les ressources globales
 interface GlobalResources {
@@ -72,11 +37,11 @@ interface StoreContextType {
   updateAdminPassword: (newPass: string) => void;
   updateGlobalResource: (key: keyof GlobalResources, value: any) => void;
   addTransaction: (t: Omit<Transaction, 'id' | 'status' | 'date'>) => void;
-  updateTransactionStatus: (id: number, status: 'approved' | 'rejected') => void;
-  updateServiceProgress: (id: number, progress: number, fileData?: { name: string, url: string }) => void;
-  deleteTransaction: (id: number) => void;
+  updateTransactionStatus: (id: string, status: 'approved' | 'rejected') => void;
+  updateServiceProgress: (id: string, progress: number, fileData?: { name: string, url: string }) => void;
+  deleteTransaction: (id: string) => void;
   clearTransactions: () => void;
-  regenerateCode: (id: number) => void;
+  regenerateCode: (id: string) => void;
   addNotification: (message: string, type: 'success' | 'error' | 'info') => void;
   removeNotification: (id: string) => void;
   getSession: (id: string) => SessionInfo | undefined;
@@ -88,18 +53,16 @@ const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   
-  const [isDataLoaded, setIsDataLoaded] = useState(false);
-
-  // 1. Sessions (Léger -> LocalStorage OK)
+  // 1. Sessions (Local Storage - Configuration statique/semi-dynamique)
   const [sessions, setSessions] = useState<SessionInfo[]>(() => {
     const saved = localStorage.getItem('koblogix_sessions_v3'); 
     return saved ? JSON.parse(saved) : INITIAL_SESSIONS;
   });
 
-  // 2. Transactions (LOURD -> IndexedDB)
+  // 2. Transactions (FIREBASE FIRESTORE)
   const [transactions, setTransactions] = useState<Transaction[]>([]);
 
-  // 3. Users (Léger -> LocalStorage OK)
+  // 3. Users (Local Storage pour simulation auth client simple)
   const [users, setUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem('koblogix_users');
     return saved ? JSON.parse(saved) : [];
@@ -114,27 +77,51 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     return localStorage.getItem('koblogix_admin_pass') || 'admin123';
   });
 
-  // 4. Global Resources (LOURD -> IndexedDB)
-  const [globalResources, setGlobalResources] = useState<GlobalResources>({ whatsappLink: 'https://chat.whatsapp.com/E4IbdUyvrVt6l0xwD7WE3n' });
+  // 4. Global Resources (Local Storage pour l'instant, pourrait aussi passer sur Firebase)
+  const [globalResources, setGlobalResources] = useState<GlobalResources>(() => {
+    const saved = localStorage.getItem('koblogix_resources');
+    return saved ? JSON.parse(saved) : { whatsappLink: 'https://chat.whatsapp.com/E4IbdUyvrVt6l0xwD7WE3n' };
+  });
 
   const [isAdminOpen, setAdminOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
-  // --- CHARGEMENT INITIAL (IndexedDB) ---
+  // --- LISTENER FIREBASE (Lecture Temps Réel) ---
   useEffect(() => {
-    const loadData = async () => {
-      const savedTx = await dbGet('transactions');
-      if (savedTx) setTransactions(savedTx);
+    // On écoute la collection "orders" (ou transactions)
+    const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const fetchedTransactions: Transaction[] = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          name: data.name,
+          phone: data.phone,
+          email: data.email,
+          method: data.method,
+          paymentRef: data.paymentRef,
+          amount: data.amount,
+          type: data.type,
+          status: data.status,
+          date: data.date,
+          code: data.code,
+          codeExpiresAt: data.codeExpiresAt,
+          items: data.items || [],
+          serviceProgress: data.serviceProgress,
+          deliveredFile: data.deliveredFile
+        } as Transaction;
+      });
+      setTransactions(fetchedTransactions);
+    }, (error) => {
+      console.error("Erreur Firebase:", error);
+      addNotification("Erreur de connexion à la base de données", "error");
+    });
 
-      const savedRes = await dbGet('globalResources');
-      if (savedRes) setGlobalResources(savedRes);
-
-      setIsDataLoaded(true);
-    };
-    loadData();
+    return () => unsubscribe();
   }, []);
 
-  // --- PERSISTENCE ---
+  // --- PERSISTENCE LOCALE ---
   useEffect(() => localStorage.setItem('koblogix_sessions_v3', JSON.stringify(sessions)), [sessions]);
   useEffect(() => localStorage.setItem('koblogix_users', JSON.stringify(users)), [users]);
   useEffect(() => {
@@ -142,18 +129,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       else localStorage.removeItem('koblogix_current_user');
   }, [currentUser]);
   useEffect(() => localStorage.setItem('koblogix_admin_pass', adminPassword), [adminPassword]);
-
-  useEffect(() => {
-    if (isDataLoaded) {
-       dbSave('transactions', transactions);
-    }
-  }, [transactions, isDataLoaded]);
-
-  useEffect(() => {
-    if (isDataLoaded) {
-       dbSave('globalResources', globalResources);
-    }
-  }, [globalResources, isDataLoaded]);
+  useEffect(() => localStorage.setItem('koblogix_resources', JSON.stringify(globalResources)), [globalResources]);
 
 
   // --- LOGIQUE MÉTIER ---
@@ -168,16 +144,22 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setNotifications(prev => prev.filter(n => n.id !== id));
   };
 
-  const addTransaction = (t: Omit<Transaction, 'id' | 'status' | 'date'>) => {
-    const newTransaction: Transaction = {
-      ...t,
-      id: Math.floor(Math.random() * 1000000) + 1000,
-      status: 'pending',
-      date: new Date().toISOString().split('T')[0],
-      serviceProgress: 0 
-    };
-    setTransactions(prev => [newTransaction, ...prev]);
-    addNotification('Commande enregistrée avec succès !', 'success');
+  // AJOUT DANS FIREBASE
+  const addTransaction = async (t: Omit<Transaction, 'id' | 'status' | 'date'>) => {
+    try {
+      await addDoc(collection(db, "orders"), {
+        ...t,
+        status: 'pending',
+        date: new Date().toISOString().split('T')[0],
+        createdAt: Timestamp.now(), // Pour le tri
+        serviceProgress: 0,
+        items: t.items || []
+      });
+      addNotification('Commande envoyée au serveur !', 'success');
+    } catch (e) {
+      console.error("Erreur ajout commande:", e);
+      addNotification('Erreur lors de l\'envoi de la commande.', 'error');
+    }
   };
 
   const generateSecureCode = () => {
@@ -189,12 +171,14 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     return `KOB-${result}`;
   };
 
-  const updateTransactionStatus = (id: number, status: 'approved' | 'rejected') => {
+  // MISE A JOUR FIREBASE
+  const updateTransactionStatus = async (id: string, status: 'approved' | 'rejected') => {
     const targetTx = transactions.find(t => t.id === id);
     if (!targetTx) return;
 
     if (status === 'approved' && targetTx.status === 'approved') return; 
 
+    // Gestion stock sessions (Local pour l'instant, idéalement à migrer sur Firebase aussi)
     if (status === 'approved') {
         setSessions(prevSessions => {
             return prevSessions.map(session => {
@@ -206,45 +190,49 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
                 return session;
             });
         });
-        addNotification(`Stock mis à jour pour la commande #${id}`, 'success');
+        addNotification(`Stock mis à jour pour la commande`, 'success');
     }
 
-    setTransactions(prevTransactions => prevTransactions.map(t => {
-        if (t.id === id) {
-             const updates: Partial<Transaction> = { status: status };
-             if (status === 'approved') {
-                 updates.code = generateSecureCode();
-                 // CHANGE: Validité de 3 minutes (3 * 60 * 1000 ms)
-                 updates.codeExpiresAt = Date.now() + (3 * 60 * 1000); 
-                 updates.serviceProgress = 5; 
-             }
-             return { ...t, ...updates };
-        }
-        return t;
-    }));
-
-    if (status === 'rejected') addNotification(`Transaction #${id} rejetée`, 'error');
+    try {
+      const updates: any = { status: status };
+      if (status === 'approved') {
+         updates.code = generateSecureCode();
+         updates.codeExpiresAt = Date.now() + (3 * 60 * 1000); // 3 minutes
+         updates.serviceProgress = 5; 
+      }
+      
+      const docRef = doc(db, "orders", id);
+      await updateDoc(docRef, updates);
+      
+      if (status === 'rejected') addNotification(`Transaction rejetée`, 'error');
+    } catch (e) {
+      console.error("Erreur update status:", e);
+      addNotification('Erreur mise à jour.', 'error');
+    }
   };
 
-  const updateServiceProgress = (id: number, progress: number, fileData?: { name: string, url: string }) => {
-    setTransactions(prev => prev.map(t => {
-      if (t.id === id) {
-        const updates: Partial<Transaction> = { serviceProgress: progress };
-        if (fileData) {
-          updates.deliveredFile = {
-            name: fileData.name,
-            url: fileData.url,
-            deliveredAt: new Date().toISOString()
-          };
-          updates.serviceProgress = 100;
-        }
-        return { ...t, ...updates };
+  const updateServiceProgress = async (id: string, progress: number, fileData?: { name: string, url: string }) => {
+    try {
+      const docRef = doc(db, "orders", id);
+      const updates: any = { serviceProgress: progress };
+      
+      if (fileData) {
+        updates.deliveredFile = {
+          name: fileData.name,
+          url: fileData.url,
+          deliveredAt: new Date().toISOString()
+        };
+        updates.serviceProgress = 100;
       }
-      return t;
-    }));
-    
-    if (fileData) addNotification('Fichier livré au client avec succès !', 'success');
-    else addNotification('Avancement mis à jour', 'info');
+      
+      await updateDoc(docRef, updates);
+      
+      if (fileData) addNotification('Fichier livré au client avec succès !', 'success');
+      else addNotification('Avancement mis à jour', 'info');
+    } catch (e) {
+      console.error("Erreur update progress:", e);
+      addNotification('Erreur mise à jour progression.', 'error');
+    }
   };
 
   const updateGlobalResource = (key: keyof GlobalResources, value: any) => {
@@ -252,29 +240,36 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       addNotification('Ressource mise à jour avec succès', 'success');
   };
 
-  const deleteTransaction = (id: number) => {
-    setTransactions(prev => prev.filter(t => t.id !== id));
-    addNotification(`Transaction #${id} supprimée`, 'info');
+  const deleteTransaction = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, "orders", id));
+      addNotification(`Transaction supprimée`, 'info');
+    } catch (e) {
+      console.error("Erreur suppression:", e);
+      addNotification('Erreur suppression.', 'error');
+    }
   };
 
-  const clearTransactions = () => {
-    setTransactions([]);
+  const clearTransactions = async () => {
+    // Attention : Firestore ne permet pas de supprimer une collection d'un coup côté client facilement
+    // On supprime un par un pour l'instant (déconseillé pour gros volumes, mais ok ici)
+    const promises = transactions.map(t => deleteDoc(doc(db, "orders", t.id)));
+    await Promise.all(promises);
     addNotification('Historique vidé.', 'success');
   };
 
-  const regenerateCode = (id: number) => {
-    setTransactions(prev => prev.map(t => {
-      if (t.id === id) {
-        return {
-          ...t,
-          code: generateSecureCode(),
-          // CHANGE: Validité de 3 minutes lors de la régénération aussi
-          codeExpiresAt: Date.now() + (3 * 60 * 1000)
-        };
-      }
-      return t;
-    }));
-    addNotification('Nouveau code généré (Valide 3 min)', 'info');
+  const regenerateCode = async (id: string) => {
+    try {
+      const docRef = doc(db, "orders", id);
+      await updateDoc(docRef, {
+        code: generateSecureCode(),
+        codeExpiresAt: Date.now() + (3 * 60 * 1000)
+      });
+      addNotification('Nouveau code généré (Valide 3 min)', 'info');
+    } catch (e) {
+      console.error("Erreur regen code:", e);
+      addNotification('Erreur génération code.', 'error');
+    }
   };
 
   const updateAdminPassword = (newPass: string) => {

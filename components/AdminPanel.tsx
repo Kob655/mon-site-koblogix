@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Lock, LayoutDashboard, LogOut, Check, X, Eye, EyeOff, FileText, Search, RotateCcw, AlertTriangle, Clock, RefreshCw, Save, Shield, TrendingUp, Users, DollarSign, ChevronRight, Trash2, Trash, Briefcase, UploadCloud } from 'lucide-react';
 import Modal from './ui/Modal';
@@ -371,7 +372,7 @@ const AdminPanel: React.FC = () => {
       }
   };
 
-  const handleDeleteOne = (id: number) => {
+  const handleDeleteOne = (id: string) => {
       if (window.confirm("Voulez-vous vraiment supprimer cette transaction de l'historique ?")) {
           deleteTransaction(id);
       }
