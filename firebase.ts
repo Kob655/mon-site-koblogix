@@ -17,3 +17,4 @@ const app = initializeApp(firebaseConfig);
 
 // Export de la base de données Firestore
 export const db = getFirestore(app);
+
