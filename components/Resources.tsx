@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Lock, Download, RefreshCw, Key, FileText, Video, Link as LinkIcon, AlertCircle, Users, CheckCircle, FileCheck, Copy, Check, Clock, LogOut, Award, Briefcase, ChevronRight, PenTool, Search } from 'lucide-react';
+import { Lock, Download, RefreshCw, Key, FileText, Video, Link as LinkIcon, AlertCircle, Users, CheckCircle, FileCheck, Copy, Check, Clock, LogOut, Award, Briefcase, ChevronRight, PenTool, Search, Loader2 } from 'lucide-react';
 import { WHATSAPP_SUPPORT } from '../constants';
 import { useStore } from '../context/StoreContext';
 import { generateReceipt } from '../utils/exports';
@@ -11,6 +11,7 @@ const Resources: React.FC = () => {
   const [unlockedTransaction, setUnlockedTransaction] = useState<any | null>(null);
   const [error, setError] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [downloadingFile, setDownloadingFile] = useState<string | null>(null);
   
   const { transactions, currentUser, logoutUser, globalResources } = useStore();
 
@@ -36,6 +37,37 @@ const Resources: React.FC = () => {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  // --- FONCTION DE TÉLÉCHARGEMENT ROBUSTE ---
+  const handleFileDownload = async (url: string | undefined, filename: string, fileKey: string) => {
+      if (!url) return;
+      
+      setDownloadingFile(fileKey);
+      
+      try {
+          // Méthode 1 : Tenter de récupérer le fichier comme un Blob (Force le téléchargement)
+          const response = await fetch(url);
+          if (!response.ok) throw new Error('Network response was not ok');
+          
+          const blob = await response.blob();
+          const blobUrl = window.URL.createObjectURL(blob);
+          
+          const link = document.createElement('a');
+          link.href = blobUrl;
+          link.download = filename;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(blobUrl);
+          
+      } catch (e) {
+          console.warn("Téléchargement direct bloqué (CORS probable), ouverture dans un nouvel onglet.", e);
+          // Méthode 2 (Fallback) : Ouvrir dans un nouvel onglet
+          window.open(url, '_blank');
+      } finally {
+          setDownloadingFile(null);
+      }
   };
 
   // --- GENERATE CERTIFICATE FUNCTION ---
@@ -207,13 +239,14 @@ const Resources: React.FC = () => {
                         <p className="text-green-200 mb-6 text-sm">
                             Le fichier <strong>{unlockedTransaction.deliveredFile.name}</strong> a été livré le {new Date(unlockedTransaction.deliveredFile.deliveredAt).toLocaleDateString()}.
                         </p>
-                        <a 
-                            href={unlockedTransaction.deliveredFile.url}
-                            download={unlockedTransaction.deliveredFile.name}
+                        <button 
+                            onClick={() => handleFileDownload(unlockedTransaction.deliveredFile.url, unlockedTransaction.deliveredFile.name, 'delivered')}
                             className="inline-flex items-center gap-2 bg-green-600 hover:bg-green-500 text-white px-8 py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-green-500/20 transition-all transform hover:-translate-y-1"
+                            disabled={downloadingFile === 'delivered'}
                         >
-                            <Download size={24}/> Télécharger mon fichier
-                        </a>
+                            {downloadingFile === 'delivered' ? <Loader2 className="animate-spin" size={24}/> : <Download size={24}/>} 
+                            {downloadingFile === 'delivered' ? 'Téléchargement...' : 'Télécharger mon fichier'}
+                        </button>
                     </div>
                 ) : (
                     <div className="bg-white/5 border border-dashed border-white/10 rounded-2xl p-8 text-center">
@@ -288,7 +321,13 @@ const Resources: React.FC = () => {
                                 </div>
                             </div>
                             {globalResources.inscriptionFile ? (
-                                <a href={globalResources.inscriptionFile.url} download={globalResources.inscriptionFile.name} className="p-2 bg-white/5 rounded-full text-gray-400 hover:text-white hover:bg-blue-600 transition-all"><Download size={20}/></a>
+                                <button 
+                                    onClick={() => handleFileDownload(globalResources.inscriptionFile?.url, globalResources.inscriptionFile?.name || 'Fiche_Inscription.pdf', 'inscription')}
+                                    className="p-2 bg-white/5 rounded-full text-gray-400 hover:text-white hover:bg-blue-600 transition-all disabled:opacity-50"
+                                    disabled={downloadingFile === 'inscription'}
+                                >
+                                    {downloadingFile === 'inscription' ? <Loader2 size={20} className="animate-spin"/> : <Download size={20}/>}
+                                </button>
                             ) : (
                                 <button disabled className="p-2 bg-white/5 rounded-full text-gray-600 cursor-not-allowed"><Download size={20}/></button>
                             )}
@@ -305,7 +344,13 @@ const Resources: React.FC = () => {
                                 </div>
                             </div>
                             {globalResources.contractFile ? (
-                                <a href={globalResources.contractFile.url} download={globalResources.contractFile.name} className="p-2 bg-white/5 rounded-full text-gray-400 hover:text-white hover:bg-blue-600 transition-all"><Download size={20}/></a>
+                                <button 
+                                    onClick={() => handleFileDownload(globalResources.contractFile?.url, globalResources.contractFile?.name || 'Contrat.pdf', 'contract')}
+                                    className="p-2 bg-white/5 rounded-full text-gray-400 hover:text-white hover:bg-blue-600 transition-all disabled:opacity-50"
+                                    disabled={downloadingFile === 'contract'}
+                                >
+                                    {downloadingFile === 'contract' ? <Loader2 size={20} className="animate-spin"/> : <Download size={20}/>}
+                                </button>
                             ) : (
                                 <button disabled className="p-2 bg-white/5 rounded-full text-gray-600 cursor-not-allowed"><Download size={20}/></button>
                             )}
@@ -329,7 +374,13 @@ const Resources: React.FC = () => {
                                 </div>
                             </div>
                             {globalResources.courseContentFile ? (
-                                <a href={globalResources.courseContentFile.url} download={globalResources.courseContentFile.name} className="px-4 py-2 bg-white text-purple-900 text-xs font-bold rounded-lg hover:bg-gray-200">Télécharger</a>
+                                <button 
+                                    onClick={() => handleFileDownload(globalResources.courseContentFile?.url, globalResources.courseContentFile?.name || 'Cours.zip', 'course')}
+                                    className="px-4 py-2 bg-white text-purple-900 text-xs font-bold rounded-lg hover:bg-gray-200 disabled:opacity-70"
+                                    disabled={downloadingFile === 'course'}
+                                >
+                                    {downloadingFile === 'course' ? 'Téléchargement...' : 'Télécharger'}
+                                </button>
                             ) : (
                                 <button disabled className="px-4 py-2 bg-white/20 text-gray-400 text-xs font-bold rounded-lg cursor-not-allowed">Indisponible</button>
                             )}
