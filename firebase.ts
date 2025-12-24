@@ -5,12 +5,12 @@ import { getStorage } from "firebase/storage";
 
 // REMPLACEZ CES VALEURS PAR CELLES DE VOTRE CONSOLE FIREBASE
 const firebaseConfig = {
-  apiKey: "VOTRE_API_KEY",
-  authDomain: "VOTRE_PROJECT_ID.firebaseapp.com",
-  projectId: "VOTRE_PROJECT_ID",
-  storageBucket: "VOTRE_PROJECT_ID.appspot.com",
-  messagingSenderId: "VOTRE_MESSAGING_SENDER_ID",
-  appId: "VOTRE_APP_ID"
+  apiKey: "AIzaSyCVKVZZCw87xrLyWkF1uJaqzJ1v_ZPCDf4",
+  authDomain: "koblogix.firebaseapp.com",
+  projectId: "koblogix",
+  storageBucket: "koblogix.firebasestorage.app",
+  messagingSenderId: "1059133656016",
+  appId: "1:1059133656016:web:684a56716bd086e6cc47d5"
 };
 
 // Initialisation de Firebase
