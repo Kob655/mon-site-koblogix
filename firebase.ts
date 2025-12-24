@@ -1,9 +1,8 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 
-// Vos vraies clés Firebase (à récupérer sur console.firebase.google.com)
 const firebaseConfig = {
-  apiKey: "AIzaSyCVKVZZCw87xrLyWkF1uJaqzJ1v_ZPCDf4",
+  apiKey: " AIzaSyCVKVZZCw87xrLyWkF1uJaqzJ1v_ZPCDf4 ",
   authDomain: "koblogix.firebaseapp.com",
   projectId: "koblogix",
   storageBucket: "koblogix.firebasestorage.app",
