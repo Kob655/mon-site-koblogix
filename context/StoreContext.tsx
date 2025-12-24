@@ -6,19 +6,23 @@ import { SESSIONS_DATA as INITIAL_SESSIONS } from '../constants';
 import { db, storage } from '../firebase'; 
 import { 
   collection, 
+  doc, 
   addDoc, 
   updateDoc, 
   deleteDoc, 
-  doc, 
+  setDoc, 
+  getDoc, 
   onSnapshot, 
   query, 
-  orderBy,
-  Timestamp,
-  setDoc,
-  getDoc,
-  increment
+  orderBy, 
+  increment,
+  Timestamp 
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { 
+  ref, 
+  uploadBytes, 
+  getDownloadURL 
+} from 'firebase/storage';
 
 interface GlobalResources {
   inscriptionFile?: { name: string, url: string };
@@ -59,13 +63,13 @@ const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   
-  // 1. Sessions (Maintenant synchronisé avec Firestore)
+  // 1. Sessions
   const [sessions, setSessions] = useState<SessionInfo[]>(INITIAL_SESSIONS);
 
-  // 2. Transactions (FIREBASE FIRESTORE)
+  // 2. Transactions
   const [transactions, setTransactions] = useState<Transaction[]>([]);
 
-  // 3. Users (Local Storage pour simulation auth client simple - pourrait être migré sur Firebase Auth)
+  // 3. Users
   const [users, setUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem('koblogix_users');
     return saved ? JSON.parse(saved) : [];
@@ -80,80 +84,92 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     return localStorage.getItem('koblogix_admin_pass') || 'admin123';
   });
 
-  // 4. Global Resources (Synchronisé avec Firestore)
+  // 4. Global Resources
   const [globalResources, setGlobalResources] = useState<GlobalResources>({ whatsappLink: 'https://chat.whatsapp.com/E4IbdUyvrVt6l0xwD7WE3n' });
 
   const [isAdminOpen, setAdminOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
   // --- INITIALISATION SESSIONS DANS FIRESTORE ---
-  // Si la collection 'sessions' est vide, on l'initialise avec les données par défaut
   useEffect(() => {
     const initSessions = async () => {
-       const q = query(collection(db, "sessions"));
-       // On écoute en temps réel
-       const unsubscribe = onSnapshot(q, (snapshot) => {
-         if (snapshot.empty) {
-            // Initial seeding if empty
-            INITIAL_SESSIONS.forEach(async (s) => {
-                await setDoc(doc(db, "sessions", s.id), s);
-            });
-         } else {
-            const fetchedSessions = snapshot.docs.map(doc => doc.data() as SessionInfo);
-            // Trier pour garder l'ordre logique (janvier, février...) si nécessaire
-            // Ici on suppose que l'ordre par défaut est ok ou on trie par ID
-            setSessions(fetchedSessions.sort((a,b) => a.id.localeCompare(b.id)));
-         }
-       });
-       return () => unsubscribe();
+       try {
+           const sessionsRef = collection(db, "sessions");
+           const unsubscribe = onSnapshot(sessionsRef, (snapshot) => {
+             if (snapshot.empty) {
+                INITIAL_SESSIONS.forEach(async (s) => {
+                    await setDoc(doc(db, "sessions", s.id), s);
+                });
+             } else {
+                const fetchedSessions = snapshot.docs.map(doc => doc.data() as SessionInfo);
+                setSessions(fetchedSessions.sort((a,b) => a.id.localeCompare(b.id)));
+             }
+           }, (error) => {
+               console.error("Erreur connexion Firestore (Sessions):", error);
+           });
+           return () => unsubscribe();
+       } catch (e) {
+           console.error("Erreur init sessions:", e);
+       }
     };
     initSessions();
   }, []);
 
   // --- LISTENER TRANSACTIONS ---
   useEffect(() => {
-    const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const fetchedTransactions: Transaction[] = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          name: data.name,
-          phone: data.phone,
-          email: data.email,
-          method: data.method,
-          paymentRef: data.paymentRef,
-          amount: data.amount,
-          type: data.type,
-          status: data.status,
-          date: data.date,
-          code: data.code,
-          codeExpiresAt: data.codeExpiresAt,
-          items: data.items || [],
-          serviceProgress: data.serviceProgress,
-          deliveredFile: data.deliveredFile
-        } as Transaction;
-      });
-      setTransactions(fetchedTransactions);
-    });
-    return () => unsubscribe();
+    try {
+        const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+          const fetchedTransactions: Transaction[] = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              name: data.name,
+              phone: data.phone,
+              email: data.email,
+              method: data.method,
+              paymentRef: data.paymentRef,
+              amount: data.amount,
+              type: data.type,
+              status: data.status,
+              date: data.date,
+              code: data.code,
+              codeExpiresAt: data.codeExpiresAt,
+              items: data.items || [],
+              serviceProgress: data.serviceProgress,
+              deliveredFile: data.deliveredFile
+            } as Transaction;
+          });
+          setTransactions(fetchedTransactions);
+        }, (error) => {
+            console.error("Erreur connexion Firestore (Orders):", error);
+        });
+        return () => unsubscribe();
+    } catch (e) {
+        console.error("Erreur init transactions:", e);
+    }
   }, []);
 
   // --- LISTENER GLOBAL RESOURCES ---
   useEffect(() => {
-      const docRef = doc(db, "settings", "global");
-      const unsubscribe = onSnapshot(docRef, (docSnap) => {
-          if (docSnap.exists()) {
-              setGlobalResources(docSnap.data() as GlobalResources);
-          } else {
-              // Create defaults if not exists
-              setDoc(docRef, { whatsappLink: 'https://chat.whatsapp.com/E4IbdUyvrVt6l0xwD7WE3n' });
-          }
-      });
-      return () => unsubscribe();
+      try {
+          const docRef = doc(db, "settings", "global");
+          const unsubscribe = onSnapshot(docRef, (docSnap) => {
+              if (docSnap.exists()) {
+                  setGlobalResources(docSnap.data() as GlobalResources);
+              } else {
+                  setDoc(docRef, { whatsappLink: 'https://chat.whatsapp.com/E4IbdUyvrVt6l0xwD7WE3n' });
+              }
+          }, (error) => {
+               console.error("Erreur connexion Firestore (Settings):", error);
+          });
+          return () => unsubscribe();
+      } catch (e) {
+          console.error("Erreur init resources:", e);
+      }
   }, []);
 
-  // --- PERSISTENCE LOCALE (Backup) ---
+  // --- PERSISTENCE LOCALE ---
   useEffect(() => localStorage.setItem('koblogix_users', JSON.stringify(users)), [users]);
   useEffect(() => {
       if (currentUser) localStorage.setItem('koblogix_current_user', JSON.stringify(currentUser));
@@ -174,16 +190,25 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setNotifications(prev => prev.filter(n => n.id !== id));
   };
 
-  // UPLOAD FICHIER (Firebase Storage)
   const uploadFileToStorage = async (file: File, path: string): Promise<string> => {
       try {
+          // Check config presence
+          if (!storage || !storage.app.options.projectId || storage.app.options.projectId.includes("VOTRE_")) {
+               throw new Error("Configuration Firebase invalide dans firebase.ts");
+          }
+
           const storageRef = ref(storage, `${path}/${Date.now()}_${file.name}`);
-          await uploadBytes(storageRef, file);
-          const url = await getDownloadURL(storageRef);
+          const snapshot = await uploadBytes(storageRef, file);
+          const url = await getDownloadURL(snapshot.ref);
           return url;
-      } catch (error) {
-          console.error("Erreur upload:", error);
-          throw new Error("Échec de l'upload du fichier");
+      } catch (error: any) {
+          console.error("Erreur upload détaillée:", error);
+          if (error.code === 'storage/unauthorized') {
+              throw new Error("Permission refusée. Vérifiez les Règles Storage dans la console Firebase.");
+          } else if (error.message && error.message.includes("Configuration Firebase invalide")) {
+              throw new Error("Veuillez configurer firebase.ts avec vos vraies clés.");
+          }
+          throw new Error("Échec upload: " + (error.message || "Erreur inconnue"));
       }
   };
 
@@ -200,7 +225,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       addNotification('Commande envoyée au serveur !', 'success');
     } catch (e) {
       console.error("Erreur ajout commande:", e);
-      addNotification('Erreur lors de l\'envoi de la commande.', 'error');
+      addNotification('Erreur lors de l\'envoi. Vérifiez la config Firebase.', 'error');
     }
   };
 
@@ -213,13 +238,11 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     return `KOB-${result}`;
   };
 
-  // GESTION DES PLACES DE SESSION
   const manageSessionSeat = async (items: any[], action: 'block' | 'release') => {
      items.forEach(async (item) => {
         if (item.sessionId) {
             const sessionRef = doc(db, "sessions", item.sessionId);
             try {
-                // block = decrement, release = increment
                 const incrementValue = action === 'release' ? 1 : -1;
                 await updateDoc(sessionRef, {
                     available: increment(incrementValue)
@@ -235,7 +258,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const targetTx = transactions.find(t => t.id === id);
     if (!targetTx) return;
 
-    // Protection contre double validation
     if (status === 'approved' && targetTx.status === 'approved') return;
 
     try {
@@ -243,10 +265,9 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       
       if (status === 'approved') {
          updates.code = generateSecureCode();
-         updates.codeExpiresAt = Date.now() + (3 * 60 * 1000); // 3 minutes
+         updates.codeExpiresAt = Date.now() + (3 * 60 * 1000); 
          updates.serviceProgress = 5; 
          
-         // BLOQUER UNE PLACE
          await manageSessionSeat(targetTx.items, 'block');
          addNotification(`Transaction validée et place réservée.`, 'success');
       } else if (status === 'rejected') {
@@ -258,7 +279,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       
     } catch (e) {
       console.error("Erreur update status:", e);
-      addNotification('Erreur mise à jour.', 'error');
+      addNotification('Erreur mise à jour. Vérifiez Firebase.', 'error');
     }
   };
 
@@ -293,7 +314,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           addNotification('Ressource mise à jour (Synchronisé)', 'success');
       } catch (e) {
           console.error("Erreur update resource", e);
-          // Fallback create if fails
           await setDoc(doc(db, "settings", "global"), { [key]: value }, { merge: true });
       }
   };
@@ -303,7 +323,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     if (!targetTx) return;
 
     try {
-      // LIBÉRER LA PLACE SI C'ÉTAIT APPROUVÉ
       if (targetTx.status === 'approved') {
           await manageSessionSeat(targetTx.items, 'release');
           addNotification('Place libérée suite à la suppression.', 'info');
@@ -318,7 +337,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
 
   const clearTransactions = async () => {
-    // Suppression une par une pour gérer les libérations de places correctement
     for (const t of transactions) {
         await deleteTransaction(t.id);
     }
@@ -359,7 +377,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const updateAdminPassword = (newPass: string) => {
     setAdminPassword(newPass);
-    addNotification('Mot de passe mis à jour', 'success');
+    addNotification('Mot de passe admin mis à jour', 'success');
   };
 
   const getSession = (id: string) => sessions.find(s => s.id === id);

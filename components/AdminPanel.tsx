@@ -54,8 +54,8 @@ const ServiceManager = ({ transaction }: { transaction: any }) => {
                     const url = await uploadFileToStorage(file, `deliveries/${transaction.id}`);
                     updateServiceProgress(transaction.id, 100, { name: file.name, url: url });
                     if (fileInputRef.current) fileInputRef.current.value = '';
-                } catch (err) {
-                    addNotification("Erreur lors de l'upload.", 'error');
+                } catch (err: any) {
+                    addNotification(err.message || "Erreur lors de l'upload.", 'error');
                 } finally {
                     setIsUploading(false);
                 }
@@ -153,8 +153,8 @@ const ResourceUploader = ({
                 const url = await uploadFileToStorage(file, `resources`);
                 onSave({ name: file.name, url: url });
                 if(fileInputRef.current) fileInputRef.current.value = '';
-            } catch (err) {
-                addNotification("Erreur Upload", 'error');
+            } catch (err: any) {
+                addNotification(err.message || "Erreur Upload", 'error');
             } finally {
                 setIsUploading(false);
             }
