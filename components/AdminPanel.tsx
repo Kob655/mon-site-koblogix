@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Lock, LayoutDashboard, LogOut, Check, X, Eye, EyeOff, FileText, Search, RotateCcw, AlertTriangle, Clock, RefreshCw, Save, Shield, TrendingUp, Users, DollarSign, ChevronRight, Trash2, Trash, Briefcase, UploadCloud } from 'lucide-react';
+import { Lock, LayoutDashboard, LogOut, Check, X, Eye, EyeOff, FileText, Search, RotateCcw, AlertTriangle, Clock, RefreshCw, Save, Shield, TrendingUp, Users, DollarSign, ChevronRight, Trash2, Trash, Briefcase, UploadCloud, Calendar } from 'lucide-react';
 import Modal from './ui/Modal';
 import { formatPrice } from '../utils';
 import { useStore } from '../context/StoreContext';
@@ -18,7 +18,7 @@ const NativeBarChart = ({ data }: { data: { label: string, value: number, height
            </div>
            <div 
              className="w-full max-w-[24px] bg-blue-500/80 dark:bg-blue-600/80 rounded-t-sm hover:bg-blue-400 transition-all duration-300 relative"
-             style={{ height: `${Math.max(item.height, 4)}%` }} // Min height for visibility
+             style={{ height: `${Math.max(item.height, 4)}%` }} 
            ></div>
            <span className="text-[9px] text-gray-400 mt-2 font-medium truncate w-full text-center uppercase tracking-wider">{item.label}</span>
         </div>
@@ -29,46 +29,37 @@ const NativeBarChart = ({ data }: { data: { label: string, value: number, height
 
 // --- COMPOSANT DE GESTION DE LIVRAISON DE SERVICE (UPLOAD) ---
 const ServiceManager = ({ transaction }: { transaction: any }) => {
-    const { updateServiceProgress } = useStore();
+    const { updateServiceProgress, uploadFileToStorage, addNotification } = useStore();
     const [progress, setProgress] = useState(transaction.serviceProgress || 0);
-    const [fileData, setFileData] = useState<{name: string, url: string} | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
     const [isExpanded, setIsExpanded] = useState(false);
-    const [uploadError, setUploadError] = useState('');
+    
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleSaveProgress = () => {
         updateServiceProgress(transaction.id, progress);
     };
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setUploadError('');
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            // Limite de taille augmentée à 50 Mo
-            if (file.size > 50 * 1024 * 1024) {
-                setUploadError('Fichier trop volumineux (>50Mo).');
+            if (file.size > 100 * 1024 * 1024) { // 100 Mo Limit
+                addNotification('Fichier trop volumineux (>100Mo).', 'error');
                 return;
             }
 
-            const reader = new FileReader();
-            reader.onload = (event) => {
-                if (event.target?.result) {
-                    setFileData({
-                        name: file.name,
-                        url: event.target.result as string
-                    });
+            if(window.confirm(`Confirmer la livraison de "${file.name}" au client ?`)) {
+                setIsUploading(true);
+                try {
+                    const url = await uploadFileToStorage(file, `deliveries/${transaction.id}`);
+                    updateServiceProgress(transaction.id, 100, { name: file.name, url: url });
+                    if (fileInputRef.current) fileInputRef.current.value = '';
+                } catch (err) {
+                    addNotification("Erreur lors de l'upload.", 'error');
+                } finally {
+                    setIsUploading(false);
                 }
-            };
-            reader.readAsDataURL(file);
-        }
-    };
-
-    const handleDeliver = () => {
-        if(!fileData) return;
-        if(window.confirm(`Confirmer la livraison de "${fileData.name}" au client ?`)) {
-            updateServiceProgress(transaction.id, 100, fileData);
-            setFileData(null);
-            if (fileInputRef.current) fileInputRef.current.value = '';
+            }
         }
     };
 
@@ -103,34 +94,26 @@ const ServiceManager = ({ transaction }: { transaction: any }) => {
                     {/* File Delivery */}
                     {!transaction.deliveredFile ? (
                         <div className="space-y-2 pt-2 border-t border-gray-200 dark:border-slate-800">
-                            <p className="text-[10px] font-bold text-gray-400 uppercase">Livraison Fichier (Max 50Mo)</p>
+                            <p className="text-[10px] font-bold text-gray-400 uppercase">Livraison Fichier (Max 100Mo)</p>
                             
                             <div className="flex gap-2 items-center">
-                                <label className="flex-1 cursor-pointer">
+                                <label className={`flex-1 cursor-pointer ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
                                     <div className="flex items-center gap-2 p-2 border border-dashed border-gray-300 dark:border-slate-600 rounded bg-white dark:bg-slate-800 hover:bg-gray-50 dark:hover:bg-slate-700 transition-colors">
                                         <div className="p-1 bg-gray-100 dark:bg-slate-700 rounded text-gray-500">
                                             <UploadCloud size={14}/>
                                         </div>
                                         <span className="text-xs text-gray-500 truncate">
-                                            {fileData ? fileData.name : "Cliquez pour choisir un fichier..."}
+                                            {isUploading ? "Upload en cours..." : "Cliquez pour livrer un fichier..."}
                                         </span>
                                     </div>
                                     <input 
                                         type="file" 
                                         ref={fileInputRef}
                                         onChange={handleFileChange}
-                                        accept=".pdf,.zip,.rar,.doc,.docx,.tex"
                                         className="hidden"
                                     />
                                 </label>
-                                
-                                {fileData && (
-                                    <button onClick={handleDeliver} className="px-3 py-2 bg-green-600 hover:bg-green-700 text-white rounded text-[10px] font-bold flex items-center gap-1 shadow-sm">
-                                        Livrer
-                                    </button>
-                                )}
                             </div>
-                            {uploadError && <p className="text-[10px] text-red-500 font-bold">{uploadError}</p>}
                         </div>
                     ) : (
                         <div className="bg-green-100 dark:bg-green-900/30 p-2 rounded text-xs text-green-700 dark:text-green-400 flex items-center gap-2">
@@ -157,39 +140,29 @@ const ResourceUploader = ({
     isLink?: boolean,
     currentLink?: string
 }) => {
-    const [tempFile, setTempFile] = useState<{name: string, url: string} | null>(null);
+    const { uploadFileToStorage, addNotification } = useStore();
     const [tempLink, setTempLink] = useState(currentLink);
-    const [error, setError] = useState('');
+    const [isUploading, setIsUploading] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setError('');
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            if (file.size > 50 * 1024 * 1024) {
-                setError('Max 50Mo');
-                return;
+            setIsUploading(true);
+            try {
+                const url = await uploadFileToStorage(file, `resources`);
+                onSave({ name: file.name, url: url });
+                if(fileInputRef.current) fileInputRef.current.value = '';
+            } catch (err) {
+                addNotification("Erreur Upload", 'error');
+            } finally {
+                setIsUploading(false);
             }
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                if (ev.target?.result) {
-                    setTempFile({ name: file.name, url: ev.target.result as string });
-                }
-            };
-            reader.readAsDataURL(file);
         }
     };
 
-    const handleSave = () => {
-        if (isLink) {
-            onSave(tempLink);
-        } else {
-            if (tempFile) {
-                onSave(tempFile);
-                setTempFile(null);
-                if(fileInputRef.current) fileInputRef.current.value = '';
-            }
-        }
+    const handleSaveLink = () => {
+        onSave(tempLink);
     };
 
     return (
@@ -206,7 +179,7 @@ const ResourceUploader = ({
                         className="flex-1 p-2 border rounded bg-white text-xs text-black"
                         placeholder="https://..."
                     />
-                    <button onClick={handleSave} className="bg-blue-600 text-white px-3 rounded text-xs font-bold">OK</button>
+                    <button onClick={handleSaveLink} className="bg-blue-600 text-white px-3 rounded text-xs font-bold">OK</button>
                 </div>
             ) : (
                 <div className="space-y-2">
@@ -220,18 +193,53 @@ const ResourceUploader = ({
                     )}
 
                     <div className="flex gap-2">
-                        <label className="flex-1 cursor-pointer bg-white border border-gray-300 rounded p-2 flex items-center gap-2 hover:bg-gray-100">
+                        <label className={`flex-1 cursor-pointer bg-white border border-gray-300 rounded p-2 flex items-center gap-2 hover:bg-gray-100 ${isUploading ? 'opacity-50' : ''}`}>
                              <UploadCloud size={14} className="text-gray-500"/>
-                             <span className="text-xs text-gray-600 truncate">{tempFile ? tempFile.name : "Choisir..."}</span>
-                             <input type="file" className="hidden" ref={fileInputRef} onChange={handleFileChange} accept=".pdf,.zip,.doc,.docx" />
+                             <span className="text-xs text-gray-600 truncate">{isUploading ? "Patientez..." : "Choisir un fichier..."}</span>
+                             <input type="file" className="hidden" ref={fileInputRef} onChange={handleFileChange} />
                         </label>
-                        {tempFile && (
-                            <button onClick={handleSave} className="bg-blue-600 text-white px-3 rounded text-xs font-bold">Valider</button>
-                        )}
                     </div>
-                    {error && <div className="text-[10px] text-red-500 font-bold">{error}</div>}
                 </div>
             )}
+        </div>
+    );
+};
+
+// --- NOUVEAU COMPOSANT : GESTION SESSIONS ---
+const SessionManager = () => {
+    const { sessions, updateSession, resetSessionSeats } = useStore();
+
+    return (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {sessions.map(session => (
+                <div key={session.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between">
+                    <div>
+                        <h4 className="font-bold text-gray-800">{session.title}</h4>
+                        <p className="text-xs text-gray-500 mb-2">{session.dates}</p>
+                        <div className="flex items-center gap-2 mb-4">
+                            <span className={`text-xl font-black ${session.available === 0 ? 'text-red-500' : 'text-green-500'}`}>{session.available}</span>
+                            <span className="text-xs text-gray-400 font-bold uppercase">Places Restantes / {session.total}</span>
+                        </div>
+                    </div>
+                    <div className="flex gap-2 border-t pt-4">
+                         <button 
+                            onClick={() => resetSessionSeats(session.id)}
+                            className="flex-1 px-3 py-2 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold hover:bg-blue-100 transition-colors flex items-center justify-center gap-1"
+                         >
+                            <RotateCcw size={14}/> Reset Places
+                         </button>
+                         <button 
+                            onClick={() => {
+                                const newDate = prompt("Nouvelles dates ?", session.dates);
+                                if(newDate) updateSession(session.id, { dates: newDate });
+                            }}
+                            className="flex-1 px-3 py-2 bg-gray-50 text-gray-600 rounded-lg text-xs font-bold hover:bg-gray-100 transition-colors"
+                         >
+                            Modifier Date
+                         </button>
+                    </div>
+                </div>
+            ))}
         </div>
     );
 };
@@ -241,7 +249,7 @@ const AdminPanel: React.FC = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
-  const [currentTab, setCurrentTab] = useState<'dashboard' | 'settings'>('dashboard');
+  const [currentTab, setCurrentTab] = useState<'dashboard' | 'sessions' | 'settings'>('dashboard');
   
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -430,8 +438,9 @@ const AdminPanel: React.FC = () => {
                      </div>
                  </div>
                  
-                 <div className="flex bg-gray-100 dark:bg-slate-800 p-1 rounded-xl">
+                 <div className="flex bg-gray-100 dark:bg-slate-800 p-1 rounded-xl overflow-x-auto">
                      <button onClick={() => setCurrentTab('dashboard')} className={`px-5 py-2 text-sm font-bold rounded-lg transition-all ${currentTab === 'dashboard' ? 'bg-white dark:bg-slate-600 shadow-sm text-blue-600 dark:text-white' : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-300'}`}>Opérations</button>
+                     <button onClick={() => setCurrentTab('sessions')} className={`px-5 py-2 text-sm font-bold rounded-lg transition-all ${currentTab === 'sessions' ? 'bg-white dark:bg-slate-600 shadow-sm text-blue-600 dark:text-white' : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-300'}`}>Sessions</button>
                      <button onClick={() => setCurrentTab('settings')} className={`px-5 py-2 text-sm font-bold rounded-lg transition-all ${currentTab === 'settings' ? 'bg-white dark:bg-slate-600 shadow-sm text-blue-600 dark:text-white' : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-300'}`}>Paramètres</button>
                  </div>
 
@@ -451,7 +460,7 @@ const AdminPanel: React.FC = () => {
                  </div>
              </div>
 
-             {currentTab === 'settings' ? (
+             {currentTab === 'settings' && (
                  // SETTINGS TAB
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-slate-800 dark:text-slate-800">
                     <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100">
@@ -514,7 +523,16 @@ const AdminPanel: React.FC = () => {
                         </div>
                     </div>
                  </div>
-             ) : (
+             )}
+
+             {currentTab === 'sessions' && (
+                 <div className="text-slate-800">
+                     <h3 className="font-bold mb-6 flex items-center gap-3 text-lg"><Calendar size={24} className="text-blue-500"/> Gestion des Sessions</h3>
+                     <SessionManager />
+                 </div>
+             )}
+
+             {currentTab === 'dashboard' && (
                  <>
                  {/* KPI CARDS */}
                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
