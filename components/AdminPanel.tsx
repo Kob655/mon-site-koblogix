@@ -21,8 +21,9 @@ const AdminPanel: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   
-  // État local pour les réglages pour permettre le copier-coller sans lag
-  const [draftSettings, setDraftSettings] = useState<any>({});
+  // État local déconnecté du Store pour permettre la saisie/collage fluide
+  const [localSettings, setLocalSettings] = useState<any>({});
+  const [isSettingsLoaded, setIsSettingsLoaded] = useState(false);
 
   const { 
     transactions, sessions, updateTransactionStatus, toggleCompletion, 
@@ -31,19 +32,25 @@ const AdminPanel: React.FC = () => {
     updateSession, resetSessionSeats, updateServiceProgress
   } = useStore();
 
-  // Initialiser les réglages locaux quand les ressources globales chargent
+  // Charger les réglages uniquement à l'ouverture de l'onglet Settings pour éviter les resets intempestifs
   useEffect(() => {
-    if (globalResources) {
-      setDraftSettings(globalResources);
+    if (currentTab === 'settings' && !isSettingsLoaded) {
+      setLocalSettings(globalResources);
+      setIsSettingsLoaded(true);
     }
-  }, [globalResources]);
+    if (currentTab !== 'settings') {
+      setIsSettingsLoaded(false);
+    }
+  }, [currentTab, globalResources]);
 
   const filteredData = useMemo(() => {
     return transactions.filter(t => {
       const term = searchTerm.toLowerCase();
-      const matchSearch = (t.name.toLowerCase().includes(term) || 
-                          t.phone.includes(term) || 
-                          (t.paymentRef && t.paymentRef.toLowerCase().includes(term)));
+      const matchSearch = (
+        t.name.toLowerCase().includes(term) || 
+        t.phone.includes(term) || 
+        (t.paymentRef && t.paymentRef.toLowerCase().includes(term))
+      );
       const matchStatus = (statusFilter === 'all' || t.status === statusFilter);
       const matchType = (typeFilter === 'all' || t.type === typeFilter);
       return matchSearch && matchStatus && matchType;
@@ -90,6 +97,10 @@ const AdminPanel: React.FC = () => {
     }
   };
 
+  const handleSaveSettings = async () => {
+    await saveAllGlobalResources(localSettings);
+  };
+
   const exportSessionParticipants = (sessionId: string) => {
     const participants = transactions.filter(t => 
       t.status === 'approved' && 
@@ -101,18 +112,8 @@ const AdminPanel: React.FC = () => {
       return;
     }
     
-    // Simuler l'export Excel spécifique à la session
-    const data = participants.map(p => ({
-      Nom: p.name,
-      Telephone: p.phone,
-      Email: p.email || 'N/A',
-      Date: p.date,
-      Type: p.type.toUpperCase(),
-      Contrat: p.uploadedContractUrl ? 'OUI' : 'NON'
-    }));
-    
-    console.log("Exporting session data:", data);
-    alert(`Exportation de ${participants.length} participants pour la session.`);
+    // Logique export excel simplifiée
+    exportToExcel(participants);
   };
 
   if (!isAdminOpen) return null;
@@ -171,7 +172,7 @@ const AdminPanel: React.FC = () => {
 
              {/* DASHBOARD TAB */}
              {currentTab === 'dashboard' && (
-                 <div className="space-y-8">
+                 <div className="space-y-8 text-left">
                     {/* Visual Stats */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                         <div className="bg-gradient-to-br from-green-600 to-green-700 p-6 rounded-3xl text-white shadow-lg">
@@ -181,63 +182,50 @@ const AdminPanel: React.FC = () => {
                             </div>
                             <div className="text-2xl font-black">{formatPrice(stats.revenue)}</div>
                             <div className="text-[10px] uppercase font-bold opacity-70 tracking-widest">Revenu Total Validé</div>
-                            <div className="mt-4 pt-4 border-t border-white/10 grid grid-cols-2 gap-2 text-[8px] uppercase font-bold">
-                                <div><span className="opacity-50">Svc:</span> {formatPrice(stats.revenueService)}</div>
-                                <div><span className="opacity-50">Form:</span> {formatPrice(stats.revenueFormation)}</div>
-                            </div>
                         </div>
 
                         <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-gray-100 dark:border-slate-800 shadow-sm">
                             <Clock size={24} className="text-orange-500 mb-4"/>
                             <div className="text-3xl font-black text-slate-800 dark:text-white">{stats.pending}</div>
-                            <div className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">Commandes en attente</div>
+                            <div className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">En attente</div>
                         </div>
 
                         <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-gray-100 dark:border-slate-800 shadow-sm">
                             <Users size={24} className="text-blue-500 mb-4"/>
                             <div className="text-3xl font-black text-slate-800 dark:text-white">{transactions.length}</div>
-                            <div className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">Total Clients</div>
+                            <div className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">Clients</div>
                         </div>
 
                         <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-gray-100 dark:border-slate-800 shadow-sm">
                             <Award size={24} className="text-purple-500 mb-4"/>
                             <div className="text-3xl font-black text-slate-800 dark:text-white">{stats.certified}</div>
-                            <div className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">Certificats Délivrés</div>
+                            <div className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">Certifiés</div>
                         </div>
                     </div>
 
                     {/* Filters & Actions */}
                     <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-gray-100 dark:border-slate-800 shadow-sm flex flex-col md:flex-row gap-4 items-center">
-                        <div className="relative flex-1">
+                        <div className="relative flex-1 w-full">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
                             <input 
                               type="text" 
-                              placeholder="Rechercher un client ou une ref..." 
+                              placeholder="Rechercher client ou ref..." 
                               value={searchTerm} 
                               onChange={e => setSearchTerm(e.target.value)} 
                               className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-primary text-sm"
                             />
                         </div>
-                        <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-1">
+                        <div className="flex gap-2 w-full md:w-auto overflow-x-auto">
                             <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="bg-gray-100 dark:bg-slate-800 p-2.5 rounded-xl text-xs font-bold outline-none">
-                                <option value="all">Tous les Statuts</option>
+                                <option value="all">Statuts</option>
                                 <option value="pending">En attente</option>
                                 <option value="approved">Validés</option>
-                                <option value="rejected">Rejetés</option>
-                            </select>
-                            <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="bg-gray-100 dark:bg-slate-800 p-2.5 rounded-xl text-xs font-bold outline-none">
-                                <option value="all">Tous les Types</option>
-                                <option value="service">Services</option>
-                                <option value="formation_full">Pack Formation</option>
-                                <option value="reservation">Réservation</option>
-                                <option value="inscription">Inscription Seule</option>
-                                <option value="ai_pack">Pack IA</option>
                             </select>
                             <button onClick={() => exportToExcel(transactions)} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2">
-                                <Download size={16}/> Export Excel
+                                <Download size={16}/> Export
                             </button>
                             <button onClick={confirmClear} className="bg-red-50 text-red-500 px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2">
-                                <Trash2 size={16}/> Supprimer tout
+                                <Trash2 size={16}/> Vider
                             </button>
                         </div>
                     </div>
@@ -245,42 +233,39 @@ const AdminPanel: React.FC = () => {
                     {/* Transactions List */}
                     <div className="space-y-4">
                         {filteredData.length === 0 ? (
-                            <div className="text-center py-20 text-gray-500 italic">Aucune transaction trouvée avec ces filtres.</div>
+                            <div className="text-center py-20 text-gray-500 italic">Aucune transaction trouvée.</div>
                         ) : (
                             filteredData.map(t => (
-                                <div key={t.id} className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 p-5 rounded-[2rem] flex flex-col md:flex-row items-center gap-6 group hover:shadow-xl transition-all">
+                                <div key={t.id} className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 p-5 rounded-[2rem] flex flex-col md:flex-row items-center gap-6 hover:shadow-lg transition-all">
                                     <div className="flex-1 w-full text-left">
-                                        <div className="flex items-center gap-3 mb-2">
+                                        <div className="flex items-center gap-3 mb-1">
                                             <span className={`w-3 h-3 rounded-full ${t.status === 'approved' ? 'bg-green-500' : 'bg-orange-500'}`}></span>
                                             <h4 className="font-black text-lg">{t.name}</h4>
                                             <span className="text-[10px] bg-blue-100 dark:bg-blue-900/30 text-blue-600 px-2 py-0.5 rounded-full uppercase font-bold">{t.type}</span>
                                         </div>
-                                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-xs text-gray-500">
-                                            <div><span className="font-bold">Contact:</span> {t.phone}</div>
-                                            <div><span className="font-bold">Ref:</span> {t.paymentRef || 'N/A'}</div>
-                                            <div><span className="font-bold">Date:</span> {t.date}</div>
+                                        <div className="grid grid-cols-2 gap-4 text-xs text-gray-500">
+                                            <div>{t.phone}</div>
+                                            <div>Ref: {t.paymentRef || 'N/A'}</div>
                                         </div>
                                         {t.uploadedContractUrl && (
-                                            <div className="mt-3">
-                                                <a href={t.uploadedContractUrl} target="_blank" className="text-[10px] font-bold text-purple-500 bg-purple-50 dark:bg-purple-900/20 px-3 py-1 rounded-full flex items-center w-fit gap-2">
-                                                    <FileCheck size={12}/> Contrat Signé Disponible (PDF)
-                                                </a>
-                                            </div>
+                                            <a href={t.uploadedContractUrl} target="_blank" className="inline-flex items-center gap-2 mt-2 text-[10px] font-bold text-purple-500 bg-purple-50 dark:bg-purple-900/20 px-2 py-1 rounded-full">
+                                                <FileCheck size={12}/> Contrat PDF disponible
+                                            </a>
                                         )}
                                     </div>
                                     <div className="text-right w-full md:w-auto">
                                         <div className="text-xl font-black text-slate-900 dark:text-white mb-2">{formatPrice(t.amount)}</div>
                                         <div className="flex gap-2 justify-end">
                                             {t.status === 'pending' ? (
-                                                <button onClick={() => updateTransactionStatus(t.id, 'approved')} className="bg-green-600 hover:bg-green-700 text-white p-2 rounded-xl transition-all shadow-lg"><Check size={20}/></button>
+                                                <button onClick={() => updateTransactionStatus(t.id, 'approved')} className="bg-green-600 hover:bg-green-700 text-white p-2 rounded-xl transition-all"><Check size={20}/></button>
                                             ) : (
                                                 <>
-                                                    <button onClick={() => toggleCompletion(t.id)} className={`p-2 rounded-xl transition-all ${t.isCompleted ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-slate-800 text-gray-400'}`} title="Délivrer diplôme"><Award size={20}/></button>
-                                                    <button onClick={() => handleDeliverFile(t.id)} className={`p-2 rounded-xl transition-all ${t.deliveredFile ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-slate-800 text-gray-400'}`} title="Livrer travail fini"><UploadCloud size={20}/></button>
-                                                    <button onClick={() => regenerateCode(t.id)} className="p-2 bg-gray-100 dark:bg-slate-800 text-gray-400 hover:text-primary rounded-xl" title="Régénérer code accès"><RefreshCw size={20}/></button>
+                                                    <button onClick={() => toggleCompletion(t.id)} className={`p-2 rounded-xl ${t.isCompleted ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-slate-800 text-gray-400'}`} title="Certification"><Award size={20}/></button>
+                                                    <button onClick={() => handleDeliverFile(t.id)} className={`p-2 rounded-xl ${t.deliveredFile ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-slate-800 text-gray-400'}`} title="Livrer fichier"><UploadCloud size={20}/></button>
+                                                    <button onClick={() => regenerateCode(t.id)} className="p-2 bg-gray-100 dark:bg-slate-800 text-gray-400 hover:text-primary rounded-xl" title="Code"><RefreshCw size={20}/></button>
                                                 </>
                                             )}
-                                            <button onClick={() => deleteTransaction(t.id)} className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl"><Trash2 size={20}/></button>
+                                            <button onClick={() => deleteTransaction(t.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={20}/></button>
                                         </div>
                                     </div>
                                 </div>
@@ -292,18 +277,21 @@ const AdminPanel: React.FC = () => {
 
              {/* SESSIONS TAB */}
              {currentTab === 'sessions' && (
-                 <div className="space-y-6">
+                 <div className="space-y-6 text-left">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {sessions.map(session => {
-                            const participants = transactions.filter(t => t.status === 'approved' && t.items.some(i => i.sessionId === session.id));
+                            const participants = transactions.filter(t => 
+                              t.status === 'approved' && 
+                              t.items.some(i => i.sessionId === session.id)
+                            );
                             return (
-                                <div key={session.id} className="bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border border-gray-100 dark:border-slate-800 shadow-sm flex flex-col">
-                                    <div className="flex justify-between items-start mb-6 text-left">
+                                <div key={session.id} className="bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border border-gray-100 dark:border-slate-800 shadow-sm flex flex-col h-full">
+                                    <div className="flex justify-between items-start mb-4">
                                         <div>
                                             <h4 className="font-black text-lg">{session.title}</h4>
                                             <p className="text-xs text-gray-500">{session.dates}</p>
                                         </div>
-                                        <button onClick={() => exportSessionParticipants(session.id)} className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-xl" title="Exporter participants">
+                                        <button onClick={() => exportSessionParticipants(session.id)} className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-xl">
                                             <Download size={20}/>
                                         </button>
                                     </div>
@@ -317,21 +305,15 @@ const AdminPanel: React.FC = () => {
                                             <div className="bg-blue-600 h-full transition-all" style={{width: `${((session.total - session.available) / session.total) * 100}%`}}></div>
                                         </div>
                                         
-                                        {/* List of participants */}
-                                        <div className="pt-4 border-t border-gray-100 dark:border-slate-800 text-left">
-                                            <h5 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3 flex items-center gap-2"><Users size={12}/> Participants Validés ({participants.length})</h5>
+                                        <div className="pt-4 border-t border-gray-100 dark:border-slate-800">
+                                            <h5 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3 flex items-center gap-2"><Users size={12}/> Participants ({participants.length})</h5>
                                             <div className="max-h-40 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-                                                {participants.length === 0 ? <p className="text-[10px] italic text-gray-500">Aucun participant pour le moment.</p> : 
+                                                {participants.length === 0 ? <p className="text-[10px] italic text-gray-500">Aucun participant validé.</p> : 
                                                     participants.map(p => (
-                                                        <div key={p.id} className="text-[11px] font-bold p-2 bg-gray-50 dark:bg-slate-800 rounded-lg flex justify-between items-center group/p">
+                                                        <div key={p.id} className="text-[11px] font-bold p-2 bg-gray-50 dark:bg-slate-800 rounded-lg flex justify-between items-center">
                                                             <span>{p.name}</span>
-                                                            <div className="flex gap-2">
-                                                              {/* Fix: Wrapped FileCheck in span to provide 'title' without passing it as an invalid prop to the Lucide component */}
-                                                              {p.uploadedContractUrl && (
-                                                                <span title="Contrat Reçu">
-                                                                  <FileCheck size={12} className="text-purple-500" />
-                                                                </span>
-                                                              )}
+                                                            <div className="flex gap-1">
+                                                              {p.uploadedContractUrl && <FileCheck size={12} className="text-purple-500" />}
                                                               <Check size={12} className="text-green-500"/>
                                                             </div>
                                                         </div>
@@ -341,7 +323,7 @@ const AdminPanel: React.FC = () => {
                                         </div>
 
                                         <div className="flex gap-2 pt-2 mt-auto">
-                                            <button onClick={() => resetSessionSeats(session.id)} className="flex-1 bg-gray-100 dark:bg-slate-800 py-2 rounded-xl text-[10px] font-bold text-gray-500">Réinitialiser Places</button>
+                                            <button onClick={() => resetSessionSeats(session.id)} className="flex-1 bg-gray-100 dark:bg-slate-800 py-2 rounded-xl text-[10px] font-bold text-gray-500">Reset Places</button>
                                             <input 
                                                 type="number" 
                                                 value={session.available} 
@@ -359,7 +341,7 @@ const AdminPanel: React.FC = () => {
 
              {/* SETTINGS TAB */}
              {currentTab === 'settings' && (
-                 <div className="max-w-4xl mx-auto space-y-6">
+                 <div className="max-w-4xl mx-auto space-y-6 text-left">
                     <div className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] border border-gray-100 dark:border-slate-800 shadow-xl">
                         <div className="flex justify-between items-center mb-8">
                             <div className="flex items-center gap-3">
@@ -367,19 +349,19 @@ const AdminPanel: React.FC = () => {
                                 <h3 className="text-2xl font-black">Liens des Ressources</h3>
                             </div>
                             <button 
-                                onClick={() => saveAllGlobalResources(draftSettings)} 
+                                onClick={handleSaveSettings} 
                                 className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-2xl font-bold flex items-center gap-2 shadow-lg shadow-green-500/20 active:scale-95 transition-all"
                             >
-                                <Save size={20}/> Sauvegarder tout
+                                <Save size={20}/> Sauvegarder
                             </button>
                         </div>
 
-                        <div className="grid md:grid-cols-2 gap-8 text-left">
+                        <div className="grid md:grid-cols-2 gap-8">
                             {[
-                                { label: "Lien Fiche d'Inscription (Google Drive)", key: "inscriptionUrl" },
-                                { label: "Lien Contrat Type (Google Drive)", key: "contractUrl" },
-                                { label: "Lien Pack Drive (Vidéo/Cours)", key: "courseContentUrl" },
-                                { label: "Lien Canal WhatsApp VIP", key: "whatsappLink" },
+                                { label: "Lien Inscription (Drive)", key: "inscriptionUrl" },
+                                { label: "Lien Contrat Type (Drive)", key: "contractUrl" },
+                                { label: "Lien Pack Drive (Cours)", key: "courseContentUrl" },
+                                { label: "Lien WhatsApp VIP", key: "whatsappLink" },
                                 { label: "Lien Guide Overleaf (PDF)", key: "overleafGuideUrl" }
                             ].map(res => (
                                 <div key={res.key} className="space-y-2">
@@ -387,12 +369,12 @@ const AdminPanel: React.FC = () => {
                                     <div className="relative">
                                       <input 
                                           type="text" 
-                                          value={draftSettings[res.key] || ''} 
-                                          onChange={(e) => setDraftSettings({...draftSettings, [res.key]: e.target.value})}
-                                          className="w-full p-4 bg-gray-50 dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 outline-none focus:ring-2 focus:ring-primary text-sm font-mono pr-12"
-                                          placeholder="Collez le lien ici (Ctrl+V)..."
+                                          value={localSettings[res.key] || ''} 
+                                          onChange={(e) => setLocalSettings({...localSettings, [res.key]: e.target.value})}
+                                          className="w-full p-4 bg-gray-50 dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 outline-none focus:ring-2 focus:ring-primary text-sm font-mono"
+                                          placeholder="Collez le lien ici..."
                                       />
-                                      <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">
+                                      <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-300">
                                         <LinkIcon size={16}/>
                                       </div>
                                     </div>
