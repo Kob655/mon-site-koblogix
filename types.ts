@@ -1,5 +1,4 @@
 
-
 export interface ServiceItem {
   id: string;
   title: string;
@@ -17,7 +16,7 @@ export interface CartItem {
   details?: string;
   sessionId?: string; 
   quantity?: number;
-  option?: 'simple' | 'accompagnement'; // Pour le pack IA
+  option?: 'simple' | 'accompagnement'; 
 }
 
 export interface Transaction {
@@ -28,15 +27,16 @@ export interface Transaction {
   method: 'tmoney' | 'flooz';
   paymentRef?: string;
   amount: number;
-  type: string; // 'formation_full', 'inscription', 'reservation', 'service', 'ai_pack'
+  type: string; 
   notes?: string;
   status: 'pending' | 'approved' | 'rejected';
-  isCompleted?: boolean; // NOUVEAU : Pour débloquer le certificat
+  isCompleted?: boolean;
   date: string;
   code?: string;
   codeExpiresAt?: number;
   items: CartItem[];
   serviceProgress?: number;
+  uploadedContractUrl?: string; // URL du contrat signé téléversé par l'utilisateur
   deliveredFile?: {
     name: string;
     url: string;
@@ -66,7 +66,6 @@ export interface User {
   registeredAt: string;
 }
 
-// Added missing CustomerInfo interface for checkout processing
 export interface CustomerInfo {
   name: string;
   phone: string;

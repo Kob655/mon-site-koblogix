@@ -1,11 +1,10 @@
 
-// @refresh reset
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { SessionInfo, Transaction, Notification, User } from '../types';
 import { SESSIONS_DATA as INITIAL_SESSIONS } from '../constants';
 import { db } from '../firebase'; 
 import { 
-  collection, doc, addDoc, updateDoc, deleteDoc, setDoc, onSnapshot, query, orderBy, increment, Timestamp 
+  collection, doc, addDoc, updateDoc, deleteDoc, setDoc, onSnapshot, query, orderBy, Timestamp, getDoc
 } from 'firebase/firestore';
 
 interface GlobalResources {
@@ -13,7 +12,7 @@ interface GlobalResources {
   contractUrl?: string;
   courseContentUrl?: string;
   whatsappLink?: string;
-  overleafGuideUrl?: string; // Nouveau : Guide Overleaf
+  overleafGuideUrl?: string;
 }
 
 interface StoreContextType {
@@ -28,8 +27,10 @@ interface StoreContextType {
   setAdminOpen: (isOpen: boolean) => void;
   updateAdminPassword: (newPass: string) => void;
   updateGlobalResource: (key: keyof GlobalResources, value: string) => void;
+  saveAllGlobalResources: (data: GlobalResources) => Promise<void>;
   addTransaction: (t: Omit<Transaction, 'id' | 'status' | 'date'>) => void;
   updateTransactionStatus: (id: string, status: 'approved' | 'rejected') => void;
+  uploadContract: (transactionId: string, url: string) => Promise<void>;
   toggleCompletion: (id: string) => void;
   updateServiceProgress: (id: string, progress: number, fileData?: { name: string, url: string }) => void;
   deleteTransaction: (id: string) => void;
@@ -47,7 +48,7 @@ interface StoreContextType {
 const StoreContext = createContext<StoreContextType | undefined>(undefined);
 
 export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [sessions, setSessions] = useState<SessionInfo[]>(INITIAL_SESSIONS);
+  const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [users, setUsers] = useState<User[]>(() => {
     const saved = localStorage.getItem('koblogix_users');
@@ -123,19 +124,46 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     try {
       const target = transactions.find(t => t.id === id);
       if (!target) return;
+      
       const updates: any = { status };
+      
       if (status === 'approved') {
         const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
         let code = 'KOB-';
         for (let i = 0; i < 8; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
         updates.code = code;
         updates.codeExpiresAt = Date.now() + (48 * 60 * 60 * 1000);
+
+        // LOGIQUE DE DÉCRÉMENTATION
+        for (const item of target.items) {
+          if (item.sessionId && (item.type === 'formation_full' || item.type === 'reservation')) {
+            const sessionRef = doc(db, "sessions", item.sessionId);
+            const sessionSnap = await getDoc(sessionRef);
+            if (sessionSnap.exists()) {
+              const currentAvail = sessionSnap.data().available;
+              if (currentAvail > 0) {
+                await updateDoc(sessionRef, { available: currentAvail - 1 });
+              }
+            }
+          }
+        }
       }
+      
       await updateDoc(doc(db, "orders", id), updates);
       addNotification(`Statut mis à jour : ${status}`, 'success');
     } catch (e) {
       addNotification('Erreur mise à jour.', 'error');
     }
+  };
+
+  const uploadContract = async (transactionId: string, url: string) => {
+    await updateDoc(doc(db, "orders", transactionId), { uploadedContractUrl: url });
+    addNotification('Contrat téléversé avec succès !', 'success');
+  };
+
+  const saveAllGlobalResources = async (data: GlobalResources) => {
+    await setDoc(doc(db, "settings", "global"), data);
+    addNotification('Tous les paramètres ont été sauvegardés.', 'success');
   };
 
   const toggleCompletion = async (id: string) => {
@@ -144,9 +172,9 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     try {
       const newState = !target.isCompleted;
       await updateDoc(doc(db, "orders", id), { isCompleted: newState });
-      addNotification(newState ? "Formation marquée comme terminée ! Certificat débloqué." : "Statut de complétion retiré.", "info");
+      addNotification(newState ? "Diplôme débloqué." : "Statut de complétion retiré.", "info");
     } catch (e) {
-      addNotification("Erreur lors du changement de statut.", "error");
+      addNotification("Erreur de statut.", "error");
     }
   };
 
@@ -162,7 +190,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const updateGlobalResource = async (key: keyof GlobalResources, value: string) => {
     await updateDoc(doc(db, "settings", "global"), { [key]: value });
-    addNotification('Lien mis à jour.', 'success');
   };
 
   const deleteTransaction = async (id: string) => {
@@ -171,7 +198,10 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   };
 
   const clearTransactions = async () => {
-    transactions.forEach(t => deleteDoc(doc(db, "orders", t.id)));
+    if (transactions.length === 0) return;
+    for (const t of transactions) {
+      await deleteDoc(doc(db, "orders", t.id));
+    }
     addNotification('Historique vidé.', 'success');
   };
 
@@ -185,7 +215,6 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   const updateSession = async (id: string, data: Partial<SessionInfo>) => {
     await updateDoc(doc(db, "sessions", id), data);
-    addNotification('Session mise à jour.', 'success');
   };
 
   const resetSessionSeats = async (id: string) => {
@@ -215,7 +244,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   return (
     <StoreContext.Provider value={{ 
       sessions, transactions, notifications, users, currentUser, isAdminOpen, adminPassword, globalResources, 
-      setAdminOpen, updateAdminPassword, updateGlobalResource, addTransaction, updateTransactionStatus, toggleCompletion,
+      setAdminOpen, updateAdminPassword, updateGlobalResource, saveAllGlobalResources, addTransaction, updateTransactionStatus, uploadContract, toggleCompletion,
       updateServiceProgress, deleteTransaction, clearTransactions, regenerateCode, addNotification, removeNotification, 
       getSession, updateSession, resetSessionSeats, registerUser, logoutUser
     }}>

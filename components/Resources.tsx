@@ -1,8 +1,6 @@
 
-
 import React, { useState } from 'react';
-// Added BookOpen to the lucide-react imports to fix the "Cannot find name 'BookOpen'" error.
-import { Lock, Download, FileText, Video, CheckCircle, FileCheck, Copy, Check, Clock, LogOut, Award, ChevronRight, Briefcase, ExternalLink, AlertCircle, Laptop, Sparkles, BrainCircuit, Search, FileCode, Layers, BookOpen } from 'lucide-react';
+import { Lock, Download, FileText, Video, CheckCircle, FileCheck, Copy, Check, Clock, LogOut, Award, ChevronRight, Briefcase, ExternalLink, AlertCircle, Laptop, Sparkles, BrainCircuit, Search, FileCode, Layers, BookOpen, UploadCloud, Link } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { generateReceipt } from '../utils/exports';
 import { AI_PACK_CONTENT } from '../constants/aiContent';
@@ -13,8 +11,9 @@ const Resources: React.FC = () => {
   const [unlockedTransaction, setUnlockedTransaction] = useState<any | null>(null);
   const [error, setError] = useState('');
   const [copiedPrompt, setCopiedPrompt] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   
-  const { transactions, currentUser, globalResources } = useStore();
+  const { transactions, currentUser, globalResources, uploadContract } = useStore();
 
   const handleUnlock = (manualCode?: string) => {
     setError('');
@@ -30,6 +29,20 @@ const Resources: React.FC = () => {
     } else {
       setError("Code invalide ou expiré.");
     }
+  };
+
+  const handleContractUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || !e.target.files[0] || !unlockedTransaction) return;
+    
+    setIsUploading(true);
+    // Simuler un upload vers Firebase Storage
+    // Dans une version réelle, on utiliserait ref() et uploadBytes()
+    const fakeUrl = "https://firebasestorage.googleapis.com/v0/b/contract-signed.pdf";
+    
+    setTimeout(async () => {
+      await uploadContract(unlockedTransaction.id, fakeUrl);
+      setIsUploading(false);
+    }, 1500);
   };
 
   const copyToClipboard = (text: string, id: string) => {
@@ -110,27 +123,6 @@ const Resources: React.FC = () => {
                 ))}
             </div>
         </section>
-
-        {/* Guides Section */}
-        <section>
-             <h4 className="text-sm font-black text-gray-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
-                <Laptop size={16}/> Guides de Productivité
-            </h4>
-            <div className="grid gap-4">
-                {AI_PACK_CONTENT.guides.map((g, i) => (
-                    <div key={i} className="p-4 bg-white/5 border border-white/10 rounded-xl flex items-center justify-between hover:bg-white/10 transition-colors cursor-pointer">
-                        <div className="flex items-center gap-4">
-                            <div className="p-3 bg-purple-500/20 text-purple-400 rounded-lg"><BookOpen size={20}/></div>
-                            <div>
-                                <h5 className="font-bold text-sm text-white">{g.title}</h5>
-                                <p className="text-[10px] text-gray-500">{g.desc}</p>
-                            </div>
-                        </div>
-                        <ChevronRight size={18} className="text-gray-600"/>
-                    </div>
-                ))}
-            </div>
-        </section>
     </div>
   );
 
@@ -149,18 +141,22 @@ const Resources: React.FC = () => {
     }
 
     const isFull = unlockedTransaction.type === 'formation_full';
+    const isInscription = unlockedTransaction.type === 'inscription' || isFull;
+    const isReservation = unlockedTransaction.type === 'reservation' || isFull;
     const isCompleted = unlockedTransaction.isCompleted;
 
     return (
         <div className="animate-slideUp w-full max-w-4xl mx-auto space-y-8">
             <div className="flex justify-between items-center border-b border-white/10 pb-6">
                 <button onClick={() => setUnlockedTransaction(null)} className="text-gray-400 hover:text-white text-sm">← Retour</button>
-                <button onClick={() => generateReceipt(unlockedTransaction)} className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg text-xs flex items-center gap-2">
-                    <FileCheck size={16} /> Reçu de Paiement
-                </button>
+                <div className="flex gap-2">
+                    <button onClick={() => generateReceipt(unlockedTransaction)} className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg text-xs flex items-center gap-2">
+                        <FileCheck size={16} /> Reçu de Paiement
+                    </button>
+                </div>
             </div>
 
-            {/* Fichier livré par l'Admin */}
+            {/* Fichier livré par l'Admin (Travaux Finis) */}
             {unlockedTransaction.deliveredFile && (
                 <div className="p-6 rounded-[2rem] border border-green-500/30 bg-green-500/10 flex flex-col md:flex-row items-center justify-between gap-4 animate-pulse">
                     <div className="flex items-center gap-4 text-center md:text-left">
@@ -177,43 +173,88 @@ const Resources: React.FC = () => {
             )}
 
             <div className="grid md:grid-cols-2 gap-8">
-                {/* Liens Ressources */}
+                {/* Liens Ressources - INSCRIPTION & CONTRAT */}
                 <div className="space-y-4">
-                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Supports & Administration</h4>
+                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Documents Administratifs</h4>
                     <div className="grid gap-3">
                         <a href={globalResources.inscriptionUrl} target="_blank" className="p-4 rounded-xl border border-white/10 bg-white/5 flex items-center justify-between hover:bg-white/10 transition-colors">
-                            <div className="flex items-center gap-3"><FileText size={20} className="text-blue-400"/> <span className="text-sm font-bold">Fiche d'Inscription</span></div>
-                            <ExternalLink size={16} className="text-gray-500"/>
+                            <div className="flex items-center gap-3"><FileText size={20} className="text-blue-400"/> <span className="text-sm font-bold">Télécharger Fiche d'Inscription</span></div>
+                            <Download size={16} className="text-gray-500"/>
                         </a>
-                        {globalResources.overleafGuideUrl && (
-                          <a href={globalResources.overleafGuideUrl} target="_blank" className="p-4 rounded-xl border border-blue-500/30 bg-blue-500/10 flex items-center justify-between hover:bg-blue-500/20 transition-colors">
-                            <div className="flex items-center gap-3"><Laptop size={20} className="text-blue-400"/> <span className="text-sm font-bold">Guide Installation Overleaf</span></div>
-                            <ExternalLink size={16} className="text-gray-400"/>
-                          </a>
-                        )}
+                        <a href={globalResources.contractUrl} target="_blank" className="p-4 rounded-xl border border-white/10 bg-white/5 flex items-center justify-between hover:bg-white/10 transition-colors">
+                            <div className="flex items-center gap-3"><Briefcase size={20} className="text-purple-400"/> <span className="text-sm font-bold">Télécharger Contrat de Formation</span></div>
+                            <Download size={16} className="text-gray-500"/>
+                        </a>
+
+                        {/* ZONE UPLOAD CONTRAT */}
+                        <div className="mt-4 p-5 rounded-2xl border-2 border-dashed border-white/20 bg-white/5 flex flex-col items-center text-center">
+                            <UploadCloud size={32} className="text-primary mb-2" />
+                            <h5 className="text-sm font-bold mb-1">Téléverser le Contrat Signé (PDF)</h5>
+                            <p className="text-[10px] text-gray-500 mb-4">Obligatoire pour la validation finale du dossier.</p>
+                            
+                            {unlockedTransaction.uploadedContractUrl ? (
+                                <div className="flex items-center gap-2 text-green-500 font-bold text-xs bg-green-500/10 px-4 py-2 rounded-full">
+                                    <CheckCircle size={14}/> Reçu par l'administration
+                                </div>
+                            ) : (
+                                <label className="cursor-pointer bg-primary hover:bg-primary-dark text-white px-6 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2">
+                                    {isUploading ? <><Clock size={14} className="animate-spin"/> Patientez...</> : <><UploadCloud size={14}/> Sélectionner le PDF</>}
+                                    <input type="file" accept=".pdf" className="hidden" onChange={handleContractUpload} disabled={isUploading} />
+                                </label>
+                            )}
+                        </div>
                     </div>
                 </div>
 
+                {/* Liens Ressources - FORMATION FULL */}
                 <div className="space-y-4">
-                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Formation Premium</h4>
+                    <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Contenu Pédagogique</h4>
                     <div className="grid gap-3">
-                        <a href={globalResources.courseContentUrl} target="_blank" className={`p-4 rounded-xl border border-white/10 flex items-center justify-between transition-colors ${isFull ? 'bg-purple-500/10 hover:bg-purple-500/20' : 'opacity-50 pointer-events-none'}`}>
-                            <div className="flex items-center gap-3"><Video size={20} className="text-purple-400"/> <span className="text-sm font-bold">Pack Cours (Drive)</span></div>
-                            <ExternalLink size={16}/>
+                        <a 
+                          href={globalResources.courseContentUrl} 
+                          target="_blank" 
+                          className={`p-4 rounded-xl border border-white/10 flex items-center justify-between transition-colors ${isFull ? 'bg-purple-500/10 hover:bg-purple-500/20' : 'opacity-40 cursor-not-allowed pointer-events-none'}`}
+                        >
+                            <div className="flex items-center gap-3"><Video size={20} className="text-purple-400"/> <span className="text-sm font-bold">Pack Cours & Drive Premium</span></div>
+                            {isFull ? <ExternalLink size={16}/> : <Lock size={16}/>}
+                        </a>
+                        <a 
+                          href={globalResources.whatsappLink} 
+                          target="_blank" 
+                          className={`p-4 rounded-xl border border-white/10 flex items-center justify-between transition-colors ${isFull ? 'bg-green-500/10 hover:bg-green-500/20' : 'opacity-40 cursor-not-allowed pointer-events-none'}`}
+                        >
+                            <div className="flex items-center gap-3"><Link size={20} className="text-green-400"/> <span className="text-sm font-bold">Lien Canal WhatsApp VIP</span></div>
+                            {isFull ? <ExternalLink size={16}/> : <Lock size={16}/>}
+                        </a>
+                        <a 
+                          href={globalResources.overleafGuideUrl} 
+                          target="_blank" 
+                          className={`p-4 rounded-xl border border-white/10 flex items-center justify-between transition-colors ${isFull ? 'bg-blue-500/10 hover:bg-blue-500/20' : 'opacity-40 cursor-not-allowed pointer-events-none'}`}
+                        >
+                            <div className="flex items-center gap-3"><Laptop size={20} className="text-blue-400"/> <span className="text-sm font-bold">Guide Installation Overleaf</span></div>
+                            {isFull ? <ExternalLink size={16}/> : <Lock size={16}/>}
                         </a>
                     </div>
+                    {!isFull && (
+                        <div className="bg-orange-500/10 border border-orange-500/20 p-4 rounded-xl flex items-start gap-3 mt-4">
+                            <AlertCircle size={18} className="text-orange-500 shrink-0 mt-0.5" />
+                            <p className="text-[10px] text-orange-400 leading-relaxed font-bold">
+                                Note : Le contenu du cours et le canal WhatsApp sont réservés aux inscrits en formation complète. Régularisez votre paiement pour y accéder.
+                            </p>
+                        </div>
+                    )}
                 </div>
             </div>
 
             {/* Certification */}
             <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 rounded-[2.5rem] p-8 border border-white/10 text-center space-y-4">
                 <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto ${isCompleted ? 'bg-green-500 text-white' : 'bg-white/5 text-gray-500'}`}><Award size={32} /></div>
-                <h4 className="text-xl font-bold">Certification</h4>
+                <h4 className="text-xl font-bold">Certification Professionnelle</h4>
                 {isCompleted ? (
-                    <button onClick={() => generateCertificate(unlockedTransaction.name, unlockedTransaction.date)} className="bg-white text-blue-900 px-8 py-3 rounded-xl font-bold flex items-center justify-center gap-2 mx-auto">
-                        <Download size={20}/> Télécharger Certificat
+                    <button onClick={() => generateCertificate(unlockedTransaction.name, unlockedTransaction.date)} className="bg-white text-blue-900 px-8 py-3 rounded-xl font-bold flex items-center justify-center gap-2 mx-auto shadow-lg hover:scale-105 transition-all">
+                        <Download size={20}/> Télécharger mon Certificat
                     </button>
-                ) : <p className="text-xs text-orange-400 font-bold">En attente de validation finale.</p>}
+                ) : <p className="text-xs text-orange-400 font-bold uppercase tracking-widest">En attente de validation finale de votre formation par l'administration.</p>}
             </div>
         </div>
     );
@@ -223,8 +264,8 @@ const Resources: React.FC = () => {
     <section id="ressources" className="py-24 bg-slate-950 text-white min-h-[700px] relative">
       <div className="container mx-auto px-4 relative z-10">
         <div className="text-center mb-16">
-          <h2 className="text-4xl font-bold font-serif mb-4">Espace Ressources</h2>
-          <p className="text-gray-400">Accédez à vos outils et travaux finalisés.</p>
+          <h2 className="text-4xl font-bold font-serif mb-4">Espace Ressources <span className="text-primary">&</span> Travaux</h2>
+          <p className="text-gray-400">Accédez à vos outils, cours et documents administratifs.</p>
         </div>
 
         <div className="max-w-4xl mx-auto bg-white/5 backdrop-blur-xl rounded-3xl p-8 border border-white/10">
@@ -233,7 +274,7 @@ const Resources: React.FC = () => {
                    {currentUser ? (
                        <div className="grid gap-4">
                            {myTransactions.length === 0 ? (
-                               <div className="text-gray-500 italic py-10">Vous n'avez pas encore de transaction validée.</div>
+                               <div className="text-gray-500 italic py-10">Vous n'avez pas encore de commande validée.</div>
                            ) : (
                                myTransactions.map(t => (
                                    <div key={t.id} className="bg-white/5 border border-white/10 p-5 rounded-2xl flex items-center justify-between hover:bg-white/10 transition-colors">
