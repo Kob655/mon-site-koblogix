@@ -1,6 +1,5 @@
 
-
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Lock, LayoutDashboard, LogOut, Check, X, Eye, EyeOff, FileText, FileCheck,
   Search, RotateCcw, AlertTriangle, Clock, RefreshCw, Save, 
@@ -10,7 +9,7 @@ import {
 import Modal from './ui/Modal';
 import { formatPrice } from '../utils';
 import { useStore } from '../context/StoreContext';
-import { exportToExcel, generateReceipt } from '../utils/exports';
+import { exportToExcel } from '../utils/exports';
 
 const AdminPanel: React.FC = () => {
   const [isAuth, setIsAuth] = useState(false);
@@ -22,19 +21,29 @@ const AdminPanel: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   
+  // État local pour les réglages pour permettre le copier-coller sans lag
+  const [draftSettings, setDraftSettings] = useState<any>({});
+
   const { 
     transactions, sessions, updateTransactionStatus, toggleCompletion, 
     deleteTransaction, clearTransactions, regenerateCode, isAdminOpen, 
-    setAdminOpen, adminPassword, globalResources, updateGlobalResource,
-    updateSession, resetSessionSeats, updateServiceProgress, saveAllGlobalResources
+    setAdminOpen, adminPassword, globalResources, saveAllGlobalResources,
+    updateSession, resetSessionSeats, updateServiceProgress
   } = useStore();
+
+  // Initialiser les réglages locaux quand les ressources globales chargent
+  useEffect(() => {
+    if (globalResources) {
+      setDraftSettings(globalResources);
+    }
+  }, [globalResources]);
 
   const filteredData = useMemo(() => {
     return transactions.filter(t => {
       const term = searchTerm.toLowerCase();
       const matchSearch = (t.name.toLowerCase().includes(term) || 
                           t.phone.includes(term) || 
-                          t.paymentRef?.toLowerCase().includes(term));
+                          (t.paymentRef && t.paymentRef.toLowerCase().includes(term)));
       const matchStatus = (statusFilter === 'all' || t.status === statusFilter);
       const matchType = (typeFilter === 'all' || t.type === typeFilter);
       return matchSearch && matchStatus && matchType;
@@ -104,7 +113,6 @@ const AdminPanel: React.FC = () => {
     
     console.log("Exporting session data:", data);
     alert(`Exportation de ${participants.length} participants pour la session.`);
-    // Logique réelle avec ExcelJS possible ici
   };
 
   if (!isAdminOpen) return null;
@@ -204,7 +212,7 @@ const AdminPanel: React.FC = () => {
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
                             <input 
                               type="text" 
-                              placeholder="Rechercher un client..." 
+                              placeholder="Rechercher un client ou une ref..." 
                               value={searchTerm} 
                               onChange={e => setSearchTerm(e.target.value)} 
                               className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-primary text-sm"
@@ -212,21 +220,24 @@ const AdminPanel: React.FC = () => {
                         </div>
                         <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-1">
                             <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="bg-gray-100 dark:bg-slate-800 p-2.5 rounded-xl text-xs font-bold outline-none">
-                                <option value="all">Statuts</option>
+                                <option value="all">Tous les Statuts</option>
                                 <option value="pending">En attente</option>
                                 <option value="approved">Validés</option>
+                                <option value="rejected">Rejetés</option>
                             </select>
                             <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className="bg-gray-100 dark:bg-slate-800 p-2.5 rounded-xl text-xs font-bold outline-none">
-                                <option value="all">Types</option>
+                                <option value="all">Tous les Types</option>
                                 <option value="service">Services</option>
-                                <option value="formation_full">Formations</option>
+                                <option value="formation_full">Pack Formation</option>
+                                <option value="reservation">Réservation</option>
+                                <option value="inscription">Inscription Seule</option>
                                 <option value="ai_pack">Pack IA</option>
                             </select>
                             <button onClick={() => exportToExcel(transactions)} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2">
                                 <Download size={16}/> Export Excel
                             </button>
                             <button onClick={confirmClear} className="bg-red-50 text-red-500 px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2">
-                                <Trash2 size={16}/> Tout vider
+                                <Trash2 size={16}/> Supprimer tout
                             </button>
                         </div>
                     </div>
@@ -238,7 +249,7 @@ const AdminPanel: React.FC = () => {
                         ) : (
                             filteredData.map(t => (
                                 <div key={t.id} className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 p-5 rounded-[2rem] flex flex-col md:flex-row items-center gap-6 group hover:shadow-xl transition-all">
-                                    <div className="flex-1 w-full">
+                                    <div className="flex-1 w-full text-left">
                                         <div className="flex items-center gap-3 mb-2">
                                             <span className={`w-3 h-3 rounded-full ${t.status === 'approved' ? 'bg-green-500' : 'bg-orange-500'}`}></span>
                                             <h4 className="font-black text-lg">{t.name}</h4>
@@ -252,7 +263,7 @@ const AdminPanel: React.FC = () => {
                                         {t.uploadedContractUrl && (
                                             <div className="mt-3">
                                                 <a href={t.uploadedContractUrl} target="_blank" className="text-[10px] font-bold text-purple-500 bg-purple-50 dark:bg-purple-900/20 px-3 py-1 rounded-full flex items-center w-fit gap-2">
-                                                    <FileCheck size={12}/> Contrat Signé Disponible
+                                                    <FileCheck size={12}/> Contrat Signé Disponible (PDF)
                                                 </a>
                                             </div>
                                         )}
@@ -261,12 +272,12 @@ const AdminPanel: React.FC = () => {
                                         <div className="text-xl font-black text-slate-900 dark:text-white mb-2">{formatPrice(t.amount)}</div>
                                         <div className="flex gap-2 justify-end">
                                             {t.status === 'pending' ? (
-                                                <button onClick={() => updateTransactionStatus(t.id, 'approved')} className="bg-green-600 hover:bg-green-700 text-white p-2 rounded-xl transition-all"><Check size={20}/></button>
+                                                <button onClick={() => updateTransactionStatus(t.id, 'approved')} className="bg-green-600 hover:bg-green-700 text-white p-2 rounded-xl transition-all shadow-lg"><Check size={20}/></button>
                                             ) : (
                                                 <>
                                                     <button onClick={() => toggleCompletion(t.id)} className={`p-2 rounded-xl transition-all ${t.isCompleted ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-slate-800 text-gray-400'}`} title="Délivrer diplôme"><Award size={20}/></button>
-                                                    <button onClick={() => handleDeliverFile(t.id)} className={`p-2 rounded-xl transition-all ${t.deliveredFile ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-slate-800 text-gray-400'}`} title="Livrer travail"><UploadCloud size={20}/></button>
-                                                    <button onClick={() => regenerateCode(t.id)} className="p-2 bg-gray-100 dark:bg-slate-800 text-gray-400 hover:text-primary rounded-xl" title="Régénérer code"><RefreshCw size={20}/></button>
+                                                    <button onClick={() => handleDeliverFile(t.id)} className={`p-2 rounded-xl transition-all ${t.deliveredFile ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-slate-800 text-gray-400'}`} title="Livrer travail fini"><UploadCloud size={20}/></button>
+                                                    <button onClick={() => regenerateCode(t.id)} className="p-2 bg-gray-100 dark:bg-slate-800 text-gray-400 hover:text-primary rounded-xl" title="Régénérer code accès"><RefreshCw size={20}/></button>
                                                 </>
                                             )}
                                             <button onClick={() => deleteTransaction(t.id)} className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl"><Trash2 size={20}/></button>
@@ -286,8 +297,8 @@ const AdminPanel: React.FC = () => {
                         {sessions.map(session => {
                             const participants = transactions.filter(t => t.status === 'approved' && t.items.some(i => i.sessionId === session.id));
                             return (
-                                <div key={session.id} className="bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border border-gray-100 dark:border-slate-800 shadow-sm">
-                                    <div className="flex justify-between items-start mb-6">
+                                <div key={session.id} className="bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border border-gray-100 dark:border-slate-800 shadow-sm flex flex-col">
+                                    <div className="flex justify-between items-start mb-6 text-left">
                                         <div>
                                             <h4 className="font-black text-lg">{session.title}</h4>
                                             <p className="text-xs text-gray-500">{session.dates}</p>
@@ -297,7 +308,7 @@ const AdminPanel: React.FC = () => {
                                         </button>
                                     </div>
 
-                                    <div className="space-y-4">
+                                    <div className="space-y-4 flex-1">
                                         <div className="flex justify-between text-xs font-bold">
                                             <span className="text-gray-400">Remplissage</span>
                                             <span className={session.available === 0 ? 'text-red-500' : 'text-green-500'}>{session.total - session.available} / {session.total}</span>
@@ -307,27 +318,35 @@ const AdminPanel: React.FC = () => {
                                         </div>
                                         
                                         {/* List of participants */}
-                                        <div className="pt-4 border-t border-gray-100 dark:border-slate-800">
+                                        <div className="pt-4 border-t border-gray-100 dark:border-slate-800 text-left">
                                             <h5 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3 flex items-center gap-2"><Users size={12}/> Participants Validés ({participants.length})</h5>
                                             <div className="max-h-40 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
                                                 {participants.length === 0 ? <p className="text-[10px] italic text-gray-500">Aucun participant pour le moment.</p> : 
                                                     participants.map(p => (
-                                                        <div key={p.id} className="text-[11px] font-bold p-2 bg-gray-50 dark:bg-slate-800 rounded-lg flex justify-between items-center">
+                                                        <div key={p.id} className="text-[11px] font-bold p-2 bg-gray-50 dark:bg-slate-800 rounded-lg flex justify-between items-center group/p">
                                                             <span>{p.name}</span>
-                                                            {p.uploadedContractUrl && <Check size={12} className="text-green-500"/>}
+                                                            <div className="flex gap-2">
+                                                              {/* Fix: Wrapped FileCheck in span to provide 'title' without passing it as an invalid prop to the Lucide component */}
+                                                              {p.uploadedContractUrl && (
+                                                                <span title="Contrat Reçu">
+                                                                  <FileCheck size={12} className="text-purple-500" />
+                                                                </span>
+                                                              )}
+                                                              <Check size={12} className="text-green-500"/>
+                                                            </div>
                                                         </div>
                                                     ))
                                                 }
                                             </div>
                                         </div>
 
-                                        <div className="flex gap-2 pt-2">
-                                            <button onClick={() => resetSessionSeats(session.id)} className="flex-1 bg-gray-100 dark:bg-slate-800 py-2 rounded-xl text-[10px] font-bold text-gray-500">Réinitialiser</button>
+                                        <div className="flex gap-2 pt-2 mt-auto">
+                                            <button onClick={() => resetSessionSeats(session.id)} className="flex-1 bg-gray-100 dark:bg-slate-800 py-2 rounded-xl text-[10px] font-bold text-gray-500">Réinitialiser Places</button>
                                             <input 
                                                 type="number" 
                                                 value={session.available} 
                                                 onChange={(e) => updateSession(session.id, { available: parseInt(e.target.value) || 0 })}
-                                                className="w-16 bg-white dark:bg-slate-700 text-center rounded-xl font-bold text-xs"
+                                                className="w-16 bg-white dark:bg-slate-700 text-center rounded-xl font-bold text-xs border border-gray-100 dark:border-slate-600"
                                             />
                                         </div>
                                     </div>
@@ -345,33 +364,38 @@ const AdminPanel: React.FC = () => {
                         <div className="flex justify-between items-center mb-8">
                             <div className="flex items-center gap-3">
                                 <div className="p-3 bg-primary/10 text-primary rounded-2xl"><SettingsIcon size={24}/></div>
-                                <h3 className="text-2xl font-black">Configuration Globale</h3>
+                                <h3 className="text-2xl font-black">Liens des Ressources</h3>
                             </div>
                             <button 
-                                onClick={() => saveAllGlobalResources(globalResources)} 
+                                onClick={() => saveAllGlobalResources(draftSettings)} 
                                 className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-2xl font-bold flex items-center gap-2 shadow-lg shadow-green-500/20 active:scale-95 transition-all"
                             >
                                 <Save size={20}/> Sauvegarder tout
                             </button>
                         </div>
 
-                        <div className="grid md:grid-cols-2 gap-8">
+                        <div className="grid md:grid-cols-2 gap-8 text-left">
                             {[
-                                { label: "Lien Fiche d'Inscription", key: "inscriptionUrl" },
-                                { label: "Lien Contrat de Formation", key: "contractUrl" },
-                                { label: "Lien Pack Drive (Cours)", key: "courseContentUrl" },
+                                { label: "Lien Fiche d'Inscription (Google Drive)", key: "inscriptionUrl" },
+                                { label: "Lien Contrat Type (Google Drive)", key: "contractUrl" },
+                                { label: "Lien Pack Drive (Vidéo/Cours)", key: "courseContentUrl" },
                                 { label: "Lien Canal WhatsApp VIP", key: "whatsappLink" },
-                                { label: "Lien Guide Overleaf", key: "overleafGuideUrl" }
+                                { label: "Lien Guide Overleaf (PDF)", key: "overleafGuideUrl" }
                             ].map(res => (
                                 <div key={res.key} className="space-y-2">
                                     <label className="text-[10px] font-black uppercase text-gray-500 tracking-widest">{res.label}</label>
-                                    <input 
-                                        type="text" 
-                                        value={(globalResources as any)[res.key] || ''} 
-                                        onChange={(e) => updateGlobalResource(res.key as any, e.target.value)}
-                                        className="w-full p-4 bg-gray-50 dark:bg-slate-800 rounded-2xl border-none outline-none focus:ring-2 focus:ring-primary text-sm font-mono"
-                                        placeholder="https://..."
-                                    />
+                                    <div className="relative">
+                                      <input 
+                                          type="text" 
+                                          value={draftSettings[res.key] || ''} 
+                                          onChange={(e) => setDraftSettings({...draftSettings, [res.key]: e.target.value})}
+                                          className="w-full p-4 bg-gray-50 dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 outline-none focus:ring-2 focus:ring-primary text-sm font-mono pr-12"
+                                          placeholder="Collez le lien ici (Ctrl+V)..."
+                                      />
+                                      <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">
+                                        <LinkIcon size={16}/>
+                                      </div>
+                                    </div>
                                 </div>
                             ))}
                         </div>
