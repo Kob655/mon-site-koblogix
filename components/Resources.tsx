@@ -1,14 +1,16 @@
 
 import React, { useState } from 'react';
-import { Lock, Download, FileText, Video, CheckCircle, FileCheck, Copy, Check, Clock, LogOut, Award, ChevronRight, Briefcase, ExternalLink, AlertCircle, Laptop } from 'lucide-react';
+import { Lock, Download, FileText, Video, CheckCircle, FileCheck, Copy, Check, Clock, LogOut, Award, ChevronRight, Briefcase, ExternalLink, AlertCircle, Laptop, Sparkles, BrainCircuit, Search, FileCode, Layers } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { generateReceipt } from '../utils/exports';
+import { AI_PACK_CONTENT } from '../constants/aiContent';
 import jsPDF from 'jspdf';
 
 const Resources: React.FC = () => {
   const [code, setCode] = useState('');
   const [unlockedTransaction, setUnlockedTransaction] = useState<any | null>(null);
   const [error, setError] = useState('');
+  const [copiedPrompt, setCopiedPrompt] = useState<string | null>(null);
   
   const { transactions, currentUser, globalResources } = useStore();
 
@@ -28,14 +30,18 @@ const Resources: React.FC = () => {
     }
   };
 
+  const copyToClipboard = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedPrompt(id);
+    setTimeout(() => setCopiedPrompt(null), 2000);
+  };
+
   const generateCertificate = (name: string, date: string) => {
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
     doc.setDrawColor(0, 119, 182); doc.setLineWidth(2); doc.rect(10, 10, 277, 190);
     doc.setFont("helvetica", "bold"); doc.setTextColor(0, 119, 182); doc.setFontSize(40);
     doc.text("CERTIFICAT DE RÉUSSITE", 148.5, 50, { align: "center" });
-    doc.setFontSize(16); doc.setTextColor(100); doc.text("Décerné à", 148.5, 75, { align: "center" });
     doc.setFontSize(32); doc.setTextColor(44, 62, 80); doc.text(name, 148.5, 95, { align: "center" });
-    doc.text("KOBLOGIX", 220, 170, { align: "center" });
     doc.save(`Certificat_KOBLOGIX_${name.replace(' ', '_')}.pdf`);
   };
 
@@ -43,8 +49,77 @@ const Resources: React.FC = () => {
     ? transactions.filter(t => t.email === currentUser.email).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     : [];
 
+  const renderAIPackDashboard = () => (
+    <div className="space-y-10 animate-slideUp">
+        <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-8 rounded-[2rem] text-white">
+            <h3 className="text-2xl font-black mb-2 flex items-center gap-3">
+                <BrainCircuit size={32}/> Votre Pack IA Premium
+            </h3>
+            <p className="text-blue-100 text-sm">Bienvenue dans votre nouvel arsenal de recherche. Utilisez ces ressources stratégiquement.</p>
+        </div>
+
+        {/* AI Tool Library */}
+        <section>
+            <h4 className="text-sm font-black text-gray-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+                <Search size={16}/> Bibliothèque d'Outils
+            </h4>
+            <div className="grid md:grid-cols-3 gap-4">
+                {AI_PACK_CONTENT.tools.map((cat, i) => (
+                    <div key={i} className="bg-white/5 border border-white/10 p-6 rounded-2xl">
+                        <h5 className="font-bold text-blue-400 mb-4">{cat.category}</h5>
+                        <div className="space-y-4">
+                            {cat.items.map((tool, j) => (
+                                <div key={j}>
+                                    <a href={tool.url} target="_blank" className="font-bold text-sm hover:underline flex items-center gap-2">
+                                        {tool.name} <ExternalLink size={12}/>
+                                    </a>
+                                    <p className="text-[10px] text-gray-500 mt-1">{tool.desc}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </section>
+
+        {/* Ultimate Prompts */}
+        <section>
+            <h4 className="text-sm font-black text-gray-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+                <FileCode size={16}/> Prompts Stratégiques "Copier-Coller"
+            </h4>
+            <div className="grid md:grid-cols-2 gap-6">
+                {AI_PACK_CONTENT.prompts.map((p, i) => (
+                    <div key={i} className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden flex flex-col">
+                        <div className="p-4 bg-white/5 border-b border-white/10 flex justify-between items-center">
+                            <span className="font-bold text-sm text-gray-300">{p.title}</span>
+                            <button 
+                                onClick={() => copyToClipboard(p.prompt, `prompt-${i}`)}
+                                className={`flex items-center gap-2 text-[10px] font-bold px-3 py-1 rounded-full transition-all ${copiedPrompt === `prompt-${i}` ? 'bg-green-500 text-white' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                            >
+                                {copiedPrompt === `prompt-${i}` ? <><Check size={12}/> Copié !</> : <><Copy size={12}/> Copier</>}
+                            </button>
+                        </div>
+                        <div className="p-4 text-xs text-gray-500 font-mono italic leading-relaxed">
+                            "{p.prompt.substring(0, 150)}..."
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </section>
+    </div>
+  );
+
   const renderContent = () => {
     if (!unlockedTransaction) return null;
+
+    if (unlockedTransaction.type === 'ai_pack') {
+        return (
+            <div className="w-full max-w-4xl mx-auto">
+                <button onClick={() => setUnlockedTransaction(null)} className="text-gray-400 hover:text-white text-sm mb-6">← Retour à la liste</button>
+                {renderAIPackDashboard()}
+            </div>
+        );
+    }
 
     const isFull = unlockedTransaction.type === 'formation_full';
     const isCompleted = unlockedTransaction.isCompleted;
@@ -60,7 +135,7 @@ const Resources: React.FC = () => {
 
             {/* Fichier livré par l'Admin */}
             {unlockedTransaction.deliveredFile && (
-                <div className="p-6 rounded-[2rem] border border-green-500/30 bg-green-500/10 flex flex-col md:flex-row items-center justify-between gap-4 animate-pulse">
+                <div className="p-6 rounded-[2rem] border border-green-500/30 bg-green-500/10 flex flex-col md:flex-row items-center justify-between gap-4">
                     <div className="flex items-center gap-4 text-center md:text-left">
                         <div className="p-4 bg-green-500 text-white rounded-2xl"><Download size={24}/></div>
                         <div>
@@ -83,8 +158,8 @@ const Resources: React.FC = () => {
                             <div className="flex items-center gap-3"><FileText size={20} className="text-blue-400"/> <span className="text-sm font-bold">Fiche d'Inscription</span></div>
                             <ExternalLink size={16} className="text-gray-500"/>
                         </a>
-                        {(globalResources as any).overleafGuideUrl && (
-                          <a href={(globalResources as any).overleafGuideUrl} target="_blank" className="p-4 rounded-xl border border-blue-500/30 bg-blue-500/10 flex items-center justify-between hover:bg-blue-500/20 transition-colors">
+                        {globalResources.overleafGuideUrl && (
+                          <a href={globalResources.overleafGuideUrl} target="_blank" className="p-4 rounded-xl border border-blue-500/30 bg-blue-500/10 flex items-center justify-between hover:bg-blue-500/20 transition-colors">
                             <div className="flex items-center gap-3"><Laptop size={20} className="text-blue-400"/> <span className="text-sm font-bold">Guide Installation Overleaf</span></div>
                             <ExternalLink size={16} className="text-gray-400"/>
                           </a>
