@@ -1,6 +1,8 @@
 
+
 import React, { useState } from 'react';
-import { Lock, Download, FileText, Video, CheckCircle, FileCheck, Copy, Check, Clock, LogOut, Award, ChevronRight, Briefcase, ExternalLink, AlertCircle, Laptop, Sparkles, BrainCircuit, Search, FileCode, Layers } from 'lucide-react';
+// Added BookOpen to the lucide-react imports to fix the "Cannot find name 'BookOpen'" error.
+import { Lock, Download, FileText, Video, CheckCircle, FileCheck, Copy, Check, Clock, LogOut, Award, ChevronRight, Briefcase, ExternalLink, AlertCircle, Laptop, Sparkles, BrainCircuit, Search, FileCode, Layers, BookOpen } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { generateReceipt } from '../utils/exports';
 import { AI_PACK_CONTENT } from '../constants/aiContent';
@@ -41,7 +43,9 @@ const Resources: React.FC = () => {
     doc.setDrawColor(0, 119, 182); doc.setLineWidth(2); doc.rect(10, 10, 277, 190);
     doc.setFont("helvetica", "bold"); doc.setTextColor(0, 119, 182); doc.setFontSize(40);
     doc.text("CERTIFICAT DE RÉUSSITE", 148.5, 50, { align: "center" });
+    doc.setFontSize(16); doc.setTextColor(100); doc.text("Décerné à", 148.5, 75, { align: "center" });
     doc.setFontSize(32); doc.setTextColor(44, 62, 80); doc.text(name, 148.5, 95, { align: "center" });
+    doc.text("KOBLOGIX", 220, 170, { align: "center" });
     doc.save(`Certificat_KOBLOGIX_${name.replace(' ', '_')}.pdf`);
   };
 
@@ -51,29 +55,29 @@ const Resources: React.FC = () => {
 
   const renderAIPackDashboard = () => (
     <div className="space-y-10 animate-slideUp">
-        <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-8 rounded-[2rem] text-white">
+        <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-8 rounded-[2rem] text-white shadow-xl">
             <h3 className="text-2xl font-black mb-2 flex items-center gap-3">
                 <BrainCircuit size={32}/> Votre Pack IA Premium
             </h3>
-            <p className="text-blue-100 text-sm">Bienvenue dans votre nouvel arsenal de recherche. Utilisez ces ressources stratégiquement.</p>
+            <p className="text-blue-100 text-sm">Bienvenue dans votre nouvel arsenal de recherche. Utilisez ces ressources stratégiquement pour vos thèses et articles.</p>
         </div>
 
         {/* AI Tool Library */}
         <section>
             <h4 className="text-sm font-black text-gray-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
-                <Search size={16}/> Bibliothèque d'Outils
+                <Search size={16}/> Bibliothèque d'Outils Sélectionnés
             </h4>
-            <div className="grid md:grid-cols-3 gap-4">
+            <div className="grid md:grid-cols-3 gap-6">
                 {AI_PACK_CONTENT.tools.map((cat, i) => (
-                    <div key={i} className="bg-white/5 border border-white/10 p-6 rounded-2xl">
-                        <h5 className="font-bold text-blue-400 mb-4">{cat.category}</h5>
-                        <div className="space-y-4">
+                    <div key={i} className="bg-white/5 border border-white/10 p-6 rounded-2xl hover:border-blue-500/30 transition-colors">
+                        <h5 className="font-bold text-blue-400 mb-4 border-b border-white/5 pb-2 text-xs uppercase tracking-widest">{cat.category}</h5>
+                        <div className="space-y-6">
                             {cat.items.map((tool, j) => (
-                                <div key={j}>
-                                    <a href={tool.url} target="_blank" className="font-bold text-sm hover:underline flex items-center gap-2">
-                                        {tool.name} <ExternalLink size={12}/>
+                                <div key={j} className="group">
+                                    <a href={tool.url} target="_blank" className="font-bold text-sm text-white hover:text-blue-400 flex items-center justify-between transition-colors">
+                                        {tool.name} <ExternalLink size={12} className="opacity-0 group-hover:opacity-100 transition-opacity"/>
                                     </a>
-                                    <p className="text-[10px] text-gray-500 mt-1">{tool.desc}</p>
+                                    <p className="text-[10px] text-gray-500 mt-1 leading-relaxed">{tool.desc}</p>
                                 </div>
                             ))}
                         </div>
@@ -89,19 +93,40 @@ const Resources: React.FC = () => {
             </h4>
             <div className="grid md:grid-cols-2 gap-6">
                 {AI_PACK_CONTENT.prompts.map((p, i) => (
-                    <div key={i} className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden flex flex-col">
+                    <div key={i} className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden flex flex-col group hover:border-purple-500/30 transition-colors">
                         <div className="p-4 bg-white/5 border-b border-white/10 flex justify-between items-center">
                             <span className="font-bold text-sm text-gray-300">{p.title}</span>
                             <button 
                                 onClick={() => copyToClipboard(p.prompt, `prompt-${i}`)}
-                                className={`flex items-center gap-2 text-[10px] font-bold px-3 py-1 rounded-full transition-all ${copiedPrompt === `prompt-${i}` ? 'bg-green-500 text-white' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                                className={`flex items-center gap-2 text-[10px] font-bold px-4 py-1.5 rounded-full transition-all ${copiedPrompt === `prompt-${i}` ? 'bg-green-500 text-white' : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95'}`}
                             >
                                 {copiedPrompt === `prompt-${i}` ? <><Check size={12}/> Copié !</> : <><Copy size={12}/> Copier</>}
                             </button>
                         </div>
-                        <div className="p-4 text-xs text-gray-500 font-mono italic leading-relaxed">
-                            "{p.prompt.substring(0, 150)}..."
+                        <div className="p-5 text-xs text-gray-500 font-mono italic leading-relaxed bg-black/20">
+                            "{p.prompt.substring(0, 160)}..."
                         </div>
+                    </div>
+                ))}
+            </div>
+        </section>
+
+        {/* Guides Section */}
+        <section>
+             <h4 className="text-sm font-black text-gray-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+                <Laptop size={16}/> Guides de Productivité
+            </h4>
+            <div className="grid gap-4">
+                {AI_PACK_CONTENT.guides.map((g, i) => (
+                    <div key={i} className="p-4 bg-white/5 border border-white/10 rounded-xl flex items-center justify-between hover:bg-white/10 transition-colors cursor-pointer">
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 bg-purple-500/20 text-purple-400 rounded-lg"><BookOpen size={20}/></div>
+                            <div>
+                                <h5 className="font-bold text-sm text-white">{g.title}</h5>
+                                <p className="text-[10px] text-gray-500">{g.desc}</p>
+                            </div>
+                        </div>
+                        <ChevronRight size={18} className="text-gray-600"/>
                     </div>
                 ))}
             </div>
@@ -115,7 +140,9 @@ const Resources: React.FC = () => {
     if (unlockedTransaction.type === 'ai_pack') {
         return (
             <div className="w-full max-w-4xl mx-auto">
-                <button onClick={() => setUnlockedTransaction(null)} className="text-gray-400 hover:text-white text-sm mb-6">← Retour à la liste</button>
+                <button onClick={() => setUnlockedTransaction(null)} className="text-gray-400 hover:text-white text-sm mb-8 flex items-center gap-2">
+                    <ChevronRight size={16} className="rotate-180"/> Retour à mes ressources
+                </button>
                 {renderAIPackDashboard()}
             </div>
         );
@@ -135,7 +162,7 @@ const Resources: React.FC = () => {
 
             {/* Fichier livré par l'Admin */}
             {unlockedTransaction.deliveredFile && (
-                <div className="p-6 rounded-[2rem] border border-green-500/30 bg-green-500/10 flex flex-col md:flex-row items-center justify-between gap-4">
+                <div className="p-6 rounded-[2rem] border border-green-500/30 bg-green-500/10 flex flex-col md:flex-row items-center justify-between gap-4 animate-pulse">
                     <div className="flex items-center gap-4 text-center md:text-left">
                         <div className="p-4 bg-green-500 text-white rounded-2xl"><Download size={24}/></div>
                         <div>
@@ -205,24 +232,53 @@ const Resources: React.FC = () => {
                <div className="text-center space-y-8 py-10">
                    {currentUser ? (
                        <div className="grid gap-4">
-                           {myTransactions.map(t => (
-                               <div key={t.id} className="bg-white/5 border border-white/10 p-5 rounded-xl flex items-center justify-between">
-                                   <div className="text-left">
-                                       <div className="font-bold">{t.items[0]?.name}</div>
-                                       <div className="text-xs text-gray-500">{t.date} • {t.status === 'approved' ? 'Validé' : 'Vérification...'}</div>
+                           {myTransactions.length === 0 ? (
+                               <div className="text-gray-500 italic py-10">Vous n'avez pas encore de transaction validée.</div>
+                           ) : (
+                               myTransactions.map(t => (
+                                   <div key={t.id} className="bg-white/5 border border-white/10 p-5 rounded-2xl flex items-center justify-between hover:bg-white/10 transition-colors">
+                                       <div className="text-left">
+                                           <div className="font-bold flex items-center gap-2">
+                                               {t.items[0]?.name}
+                                               {t.type === 'ai_pack' && <Sparkles size={14} className="text-purple-400"/>}
+                                           </div>
+                                           <div className="text-[10px] text-gray-500 uppercase tracking-widest mt-1">{t.date} • {t.status === 'approved' ? <span className="text-green-500">Validé</span> : 'Vérification...'}</div>
+                                       </div>
+                                       {t.status === 'approved' ? (
+                                           <button onClick={() => handleUnlock(t.code)} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl font-bold text-sm shadow-lg shadow-blue-500/10 active:scale-95 transition-all">
+                                               Ouvrir
+                                           </button>
+                                       ) : (
+                                           <div className="text-[10px] bg-white/10 px-3 py-1 rounded-full text-gray-400 font-bold uppercase tracking-tighter flex items-center gap-2">
+                                               <Clock size={12}/> En attente
+                                           </div>
+                                       )}
                                    </div>
-                                   {t.status === 'approved' && <button onClick={() => handleUnlock(t.code)} className="bg-blue-600 text-white px-5 py-2 rounded-lg font-bold text-sm">Ouvrir</button>}
-                               </div>
-                           ))}
+                               ))
+                           )}
                        </div>
                    ) : (
                        <div className="max-w-sm mx-auto space-y-6">
-                           <Lock size={48} className="mx-auto text-gray-400" />
-                           <div className="flex gap-2">
-                               <input type="text" value={code} onChange={e => setCode(e.target.value)} placeholder="KOB-XXXX" className="flex-1 bg-black/40 border border-white/20 p-3 rounded-xl text-center outline-none focus:border-blue-500 font-mono"/>
-                               <button onClick={() => handleUnlock()} className="bg-blue-600 p-3 rounded-xl"><ChevronRight/></button>
+                           <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto text-gray-400 mb-6">
+                               <Lock size={32} />
                            </div>
-                           {error && <p className="text-red-400 text-xs">{error}</p>}
+                           <p className="text-sm text-gray-400">Veuillez entrer le code d'accès reçu par WhatsApp après votre paiement.</p>
+                           <div className="flex gap-2">
+                               <input 
+                                   type="text" 
+                                   value={code} 
+                                   onChange={e => setCode(e.target.value)} 
+                                   placeholder="KOB-XXXX" 
+                                   className="flex-1 bg-black/40 border border-white/20 p-4 rounded-xl text-center outline-none focus:border-blue-500 font-mono text-lg tracking-[0.2em] transition-all uppercase"
+                               />
+                               <button 
+                                   onClick={() => handleUnlock()} 
+                                   className="bg-blue-600 hover:bg-blue-700 p-4 rounded-xl transition-all active:scale-95 shadow-lg shadow-blue-500/20"
+                               >
+                                   <ChevronRight/>
+                               </button>
+                           </div>
+                           {error && <p className="text-red-400 text-xs font-bold animate-bounce">{error}</p>}
                        </div>
                    )}
                </div>

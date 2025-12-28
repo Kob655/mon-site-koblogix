@@ -2,49 +2,56 @@
 export const AI_PACK_CONTENT = {
   tools: [
     {
-      category: "Recherche de Sources",
+      category: "Recherche Scientifique & Sources",
       items: [
-        { name: "Consensus", desc: "Moteur de recherche IA qui répond à partir d'articles scientifiques réels.", url: "https://consensus.app" },
-        { name: "Perplexity AI", desc: "Idéal pour obtenir des sources citées en temps réel sur n'importe quel sujet.", url: "https://perplexity.ai" },
-        { name: "Elicit", desc: "Analyse des milliers de papiers pour extraire les données clés automatiquement.", url: "https://elicit.com" }
+        { name: "Consensus", desc: "Moteur de recherche IA qui répond à partir d'articles scientifiques réels (Q1/Q2).", url: "https://consensus.app" },
+        { name: "Perplexity AI", desc: "L'alternative à Google : cite ses sources en temps réel avec une précision chirurgicale.", url: "https://perplexity.ai" },
+        { name: "Elicit", desc: "Analyse des milliers de papiers pour extraire les données clés et les limites méthodologiques.", url: "https://elicit.com" },
+        { name: "ResearchRabbit", desc: "Le 'Spotify' de la recherche : découvrez des articles similaires par mapping visuel.", url: "https://researchrabbit.ai" }
       ]
     },
     {
-      category: "Rédaction & Style",
+      category: "Rédaction Académique & Style",
       items: [
-        { name: "Claude.ai", desc: "La meilleure IA pour la rédaction académique (style plus humain que ChatGPT).", url: "https://claude.ai" },
-        { name: "DeepL Write", desc: "Pour corriger la grammaire et le style sans changer le sens technique.", url: "https://deepl.com/write" },
-        { name: "Grammarly", desc: "Indispensable pour la rédaction d'articles en anglais.", url: "https://grammarly.com" }
+        { name: "Claude 3.5 Sonnet", desc: "Actuellement la meilleure IA pour la rédaction académique fluide et nuancée.", url: "https://claude.ai" },
+        { name: "DeepL Write", desc: "Perfectionnez votre grammaire et votre ton sans dénaturer le sens technique.", url: "https://deepl.com/write" },
+        { name: "Trinka AI", desc: "Correcteur spécialisé pour les publications scientifiques et médicales.", url: "https://trinka.ai" }
       ]
     },
     {
-      category: "Analyse de PDF",
+      category: "Analyse & Discussion de PDF",
       items: [
-        { name: "ChatPDF", desc: "Discutez avec vos articles de recherche pour extraire les limites d'une étude.", url: "https://chatpdf.com" },
-        { name: "Humata AI", desc: "Analyse ultra-rapide de longs documents techniques.", url: "https://humata.ai" }
+        { name: "ChatPDF", desc: "Discutez avec vos articles de recherche pour extraire les points clés en 5 secondes.", url: "https://chatpdf.com" },
+        { name: "Humata AI", desc: "Analyse ultra-rapide de rapports techniques de plusieurs centaines de pages.", url: "https://humata.ai" },
+        { name: "SciSpace", desc: "Expliqueur de formules mathématiques et de tableaux complexes dans les PDFs.", url: "https://typeset.io" }
       ]
     }
   ],
   prompts: [
     {
-      title: "Rédaction d'une Introduction",
-      prompt: "Agis comme un expert en rédaction scientifique. Aide-moi à structurer l'introduction de ma thèse sur [SUJET]. Utilise la méthode de l'entonnoir : commence par le contexte global, puis les enjeux spécifiques, et termine par la problématique et l'annonce du plan. Le ton doit être formel et académique."
+      title: "Introduction en Entonnoir (Standard Q1)",
+      prompt: "Agis comme un expert en rédaction scientifique senior. Aide-moi à structurer l'introduction de mon travail sur [SUJET]. Applique la méthode CARS (Create a Research Space) : 1. Établis le territoire (contexte et importance), 2. Identifie la niche (manque ou controverse), 3. Occupe la niche (ma solution/objectif). Ton : formel, neutre, académique."
     },
     {
-      title: "Reformulation Académique",
-      prompt: "Reformule le texte suivant pour un article de revue Q1. Évite les répétitions, utilise un vocabulaire précis et assure-toi que les transitions logiques sont fluides. Texte : [COLLER VOTRE TEXTE ICI]"
+      title: "Reformulation pour Revue Impact Factor",
+      prompt: "Voici un paragraphe de ma section Discussion : [COLLER TEXTE]. Reformule-le pour une revue à haut facteur d'impact. Utilise des verbes d'action précis, élimine les redondances, renforce les transitions logiques et assure-toi que l'argumentation est percutante mais prudente (hedging)."
     },
     {
-      title: "Extraction de Limites",
-      prompt: "Analyse ce résumé d'article et identifie les 3 limites méthodologiques principales ainsi que les perspectives de recherche suggérées par les auteurs. Sois critique et rigoureux."
+      title: "Critique de Méthodologie",
+      prompt: "Je te fournis la méthodologie suivante : [DESCRIPTION]. Identifie 3 faiblesses potentielles que les relecteurs pourraient soulever. Propose ensuite des arguments pour justifier ces choix ou des suggestions pour renforcer la rigueur de l'étude."
     },
     {
-      title: "Génération de Plan de Mémoire",
-      prompt: "Propose un plan détaillé pour un mémoire de Master sur le thème [SUJET]. Le plan doit inclure une partie théorique, une partie méthodologique et une partie analyse des résultats. Suggère également des titres de sous-chapitres percutants."
+      title: "Génération de Résumé (Abstract) Percutant",
+      prompt: "À partir des résultats suivants [RÉSULTATS], génère un résumé de 250 mots maximum respectant la structure : Contexte, Objectif, Méthodes, Résultats Clés, Conclusion/Implication. Le résumé doit être 'self-contained' et accrocheur."
+    },
+    {
+      title: "Réponse aux Relecteurs (Reviewers)",
+      prompt: "Agis comme un chercheur diplomate. Voici une critique d'un relecteur : [CRITIQUE]. Rédige une réponse polie qui : 1. Remercie le relecteur, 2. Accepte la suggestion (ou justifie poliment le maintien), 3. Explique les modifications apportées dans le manuscrit."
     }
   ],
   guides: [
-    { title: "Configuration Zotero + IA", desc: "Comment lier vos sources à Claude pour un gain de temps de 50%." },
-    { title: "Éviter le Plagiat IA", desc: "Les 5 règles d'or pour utiliser l'IA sans risquer d'être sanctionné." }
+    { title: "Configuration Workflow Zotero + Claude", desc: "Comment exporter vos annotations PDF pour générer une revue de littérature en un clic." },
+    { title: "Stratégie Anti-Plagiat IA", desc: "Les méthodes pour utiliser l'IA comme assistant de pensée sans déclencher les détecteurs de contenu généré." },
+    { title: "Maîtriser TikZ avec l'IA", desc: "Comment demander à ChatGPT de générer des schémas LaTeX complexes sans erreurs de compilation." }
   ]
 };
