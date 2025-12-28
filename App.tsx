@@ -1,8 +1,10 @@
+
 import React from 'react';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import Formation from './components/Formation';
 import Services from './components/Services';
+import AIPack from './components/AIPack'; // NOUVEAU
 import Portfolio from './components/Portfolio';
 import Testimonials from './components/Testimonials';
 import Calculator from './components/Calculator';
@@ -31,42 +33,38 @@ const App: React.FC = () => {
             <ScrollProgress />
             <Navbar />
             <Notifications />
-            <SocialProof /> {/* Innovation: FOMO */}
+            <SocialProof />
             <main>
-              {/* 1. L'ACCROCHE */}
               <Hero />
               
-              {/* 2. LA PREUVE VISUELLE */}
               <RevealOnScroll>
                 <Portfolio />
               </RevealOnScroll>
 
-              {/* 3. L'OFFRE PHARE */}
               <RevealOnScroll>
                 <Formation />
               </RevealOnScroll>
               
-              {/* INNOVATION : PROGRAMME AMBASSADEUR */}
+              <RevealOnScroll>
+                <AIPack /> {/* NOUVEAU COMPOSANT IA */}
+              </RevealOnScroll>
+              
               <RevealOnScroll>
                 <Ambassador />
               </RevealOnScroll>
               
-              {/* 4. LE SERVICE */}
               <RevealOnScroll>
                 <Services />
               </RevealOnScroll>
 
-              {/* INNOVATION : LEAD MAGNET (Outil Gratuit) */}
               <RevealOnScroll>
                 <BibtexGenerator />
               </RevealOnScroll>
 
-              {/* 5. L'OUTIL D'ENGAGEMENT */}
               <RevealOnScroll>
                 <Calculator />
               </RevealOnScroll>
               
-              {/* 6. LA RÉASSURANCE */}
               <RevealOnScroll>
                 <Testimonials />
               </RevealOnScroll>
@@ -75,14 +73,12 @@ const App: React.FC = () => {
                  <FAQ />
               </RevealOnScroll>
               
-              {/* 7. L'ESPACE CLIENT (Avec Certificat) */}
               <RevealOnScroll>
                 <Resources />
               </RevealOnScroll>
             </main>
             <Footer />
             
-            {/* Overlays */}
             <CartSidebar />
             <CheckoutModal />
             <AdminPanel />

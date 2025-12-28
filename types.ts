@@ -1,4 +1,5 @@
 
+
 export interface ServiceItem {
   id: string;
   title: string;
@@ -14,27 +15,28 @@ export interface CartItem {
   price: number;
   type: string;
   details?: string;
-  sessionId?: string; // Link to specific session for inventory
+  sessionId?: string; 
   quantity?: number;
+  option?: 'simple' | 'accompagnement'; // Pour le pack IA
 }
 
 export interface Transaction {
-  id: string; // CHANGÉ DE NUMBER A STRING POUR FIREBASE
+  id: string;
   name: string;
   phone: string;
   email: string;
   method: 'tmoney' | 'flooz';
-  paymentRef?: string; // The SMS Reference ID from the user
+  paymentRef?: string;
   amount: number;
-  type: string; // 'formation_full', 'inscription', 'reservation', 'service'
+  type: string; // 'formation_full', 'inscription', 'reservation', 'service', 'ai_pack'
   notes?: string;
   status: 'pending' | 'approved' | 'rejected';
+  isCompleted?: boolean; // NOUVEAU : Pour débloquer le certificat
   date: string;
-  code?: string; // The access code generated
-  codeExpiresAt?: number; // Timestamp for expiry
+  code?: string;
+  codeExpiresAt?: number;
   items: CartItem[];
-  // NOUVEAUX CHAMPS POUR LES SERVICES
-  serviceProgress?: number; // 0 à 100
+  serviceProgress?: number;
   deliveredFile?: {
     name: string;
     url: string;
@@ -50,23 +52,6 @@ export interface SessionInfo {
   total: number;
 }
 
-export enum ServiceType {
-  CV = 'cv',
-  RAPPORT = 'rapport',
-  POSTER = 'poster',
-  MEMOIRE = 'memoire',
-  PRESENTATION = 'presentation',
-  PROJET = 'projet'
-}
-
-export interface CustomerInfo {
-  name: string;
-  phone: string;
-  email: string;
-  paymentMethod: 'tmoney' | 'flooz';
-  paymentRef: string;
-}
-
 export interface Notification {
   id: string;
   message: string;
@@ -77,6 +62,15 @@ export interface User {
   id: string;
   name: string;
   email: string;
-  password: string; // Stored locally for simulation
+  password: string;
   registeredAt: string;
+}
+
+// Added missing CustomerInfo interface for checkout processing
+export interface CustomerInfo {
+  name: string;
+  phone: string;
+  email: string;
+  paymentMethod: 'tmoney' | 'flooz';
+  paymentRef: string;
 }
