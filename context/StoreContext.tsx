@@ -9,10 +9,11 @@ import {
 } from 'firebase/firestore';
 
 interface GlobalResources {
-  inscriptionUrl?: string; // Changé de file object à string (URL Drive)
+  inscriptionUrl?: string;
   contractUrl?: string;
   courseContentUrl?: string;
   whatsappLink?: string;
+  overleafGuideUrl?: string; // Nouveau : Guide Overleaf
 }
 
 interface StoreContextType {
@@ -29,7 +30,7 @@ interface StoreContextType {
   updateGlobalResource: (key: keyof GlobalResources, value: string) => void;
   addTransaction: (t: Omit<Transaction, 'id' | 'status' | 'date'>) => void;
   updateTransactionStatus: (id: string, status: 'approved' | 'rejected') => void;
-  toggleCompletion: (id: string) => void; // NOUVEAU
+  toggleCompletion: (id: string) => void;
   updateServiceProgress: (id: string, progress: number, fileData?: { name: string, url: string }) => void;
   deleteTransaction: (id: string) => void;
   clearTransactions: () => void;
@@ -128,7 +129,7 @@ export const StoreProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         let code = 'KOB-';
         for (let i = 0; i < 8; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
         updates.code = code;
-        updates.codeExpiresAt = Date.now() + (48 * 60 * 60 * 1000); // 48h par défaut
+        updates.codeExpiresAt = Date.now() + (48 * 60 * 60 * 1000);
       }
       await updateDoc(doc(db, "orders", id), updates);
       addNotification(`Statut mis à jour : ${status}`, 'success');

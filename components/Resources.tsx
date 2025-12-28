@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Lock, Download, FileText, Video, CheckCircle, FileCheck, Copy, Check, Clock, LogOut, Award, ChevronRight, Briefcase, ExternalLink, AlertCircle } from 'lucide-react';
+import { Lock, Download, FileText, Video, CheckCircle, FileCheck, Copy, Check, Clock, LogOut, Award, ChevronRight, Briefcase, ExternalLink, AlertCircle, Laptop } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { generateReceipt } from '../utils/exports';
 import jsPDF from 'jspdf';
@@ -88,6 +88,12 @@ const Resources: React.FC = () => {
                             <div className="flex items-center gap-3"><FileText size={20} className="text-blue-400"/> <span className="text-sm font-bold">Contrat de Formation</span></div>
                             <ExternalLink size={16} className="text-gray-500"/>
                         </a>
+                        {(globalResources as any).overleafGuideUrl && (
+                          <a href={(globalResources as any).overleafGuideUrl} target="_blank" rel="noreferrer" className="p-4 rounded-xl border border-blue-500/30 bg-blue-500/10 hover:bg-blue-500/20 flex items-center justify-between transition-colors">
+                            <div className="flex items-center gap-3"><Laptop size={20} className="text-blue-400"/> <span className="text-sm font-bold">Guide Installation Overleaf</span></div>
+                            <ExternalLink size={16} className="text-gray-400"/>
+                          </a>
+                        )}
                     </div>
                 </div>
 

@@ -4,7 +4,7 @@ import {
   Lock, LayoutDashboard, LogOut, Check, X, Eye, EyeOff, FileText, 
   Search, RotateCcw, AlertTriangle, Clock, RefreshCw, Save, 
   Shield, TrendingUp, Users, DollarSign, ChevronRight, Trash2, 
-  Calendar, Link as LinkIcon, Award, Download, ListFilter
+  Calendar, Link as LinkIcon, Award, Download, ListFilter, Settings as SettingsIcon
 } from 'lucide-react';
 import Modal from './ui/Modal';
 import { formatPrice } from '../utils';
@@ -65,6 +65,10 @@ const AdminPanel: React.FC = () => {
     }
   };
 
+  const handleRefresh = () => {
+    window.location.reload();
+  };
+
   if (!isAdminOpen) return null;
 
   return (
@@ -119,11 +123,22 @@ const AdminPanel: React.FC = () => {
                         <Calendar size={18}/> Sessions
                      </button>
                      <button onClick={() => setCurrentTab('settings')} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${currentTab === 'settings' ? 'bg-white dark:bg-slate-700 shadow-md text-primary' : 'text-gray-500 hover:bg-white/50 dark:hover:bg-slate-800'}`}>
-                        <LinkIcon size={18}/> Drive & Liens
+                        <SettingsIcon size={18}/> Paramètres
                      </button>
                  </div>
                  <div className="flex gap-2 w-full md:w-auto">
-                    <button onClick={confirmClear} className="flex-1 md:flex-none p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors" title="Vider l'historique">
+                    <button 
+                      onClick={handleRefresh} 
+                      className="flex-1 md:flex-none p-2 bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 rounded-xl hover:bg-gray-200 transition-colors"
+                      title="Rafraîchir la page"
+                    >
+                        <RefreshCw size={20}/>
+                    </button>
+                    <button 
+                      onClick={confirmClear} 
+                      className="flex-1 md:flex-none p-2 bg-red-50 dark:bg-red-900/20 text-red-500 rounded-xl hover:bg-red-100 transition-colors" 
+                      title="Vider TOUT l'historique"
+                    >
                         <Trash2 size={20}/>
                     </button>
                     <button onClick={() => setIsAuth(false)} className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-red-500 text-white rounded-xl text-sm font-bold hover:bg-red-600 transition-colors">
@@ -226,12 +241,12 @@ const AdminPanel: React.FC = () => {
                                                     )}
                                                 </div>
                                             </td>
-                                            <td className="p-4">
+                                            <td className="p-4 text-center">
                                                 <div className="flex items-center justify-center gap-2">
                                                     {t.status === 'pending' ? (
                                                         <button 
                                                           onClick={() => updateTransactionStatus(t.id, 'approved')} 
-                                                          className="bg-green-600 hover:bg-green-700 text-white p-2 rounded-xl shadow-md transition-all active:scale-95"
+                                                          className="bg-green-600 hover:bg-green-700 text-white p-2.5 rounded-xl shadow-md transition-all active:scale-95"
                                                           title="Approuver"
                                                         >
                                                             <Check size={18}/>
@@ -240,14 +255,14 @@ const AdminPanel: React.FC = () => {
                                                         <>
                                                             <button 
                                                                 onClick={() => toggleCompletion(t.id)}
-                                                                className={`p-2 rounded-xl shadow-md transition-all active:scale-95 ${t.isCompleted ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-slate-800 text-gray-400'}`}
+                                                                className={`p-2.5 rounded-xl shadow-md transition-all active:scale-95 ${t.isCompleted ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-slate-800 text-gray-400'}`}
                                                                 title={t.isCompleted ? "Retirer diplôme" : "Délivrer diplôme"}
                                                             >
                                                                 <Award size={18}/>
                                                             </button>
                                                             <button 
                                                                 onClick={() => generateReceipt(t)}
-                                                                className="bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 p-2 rounded-xl hover:bg-gray-200 transition-all"
+                                                                className="bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-gray-300 p-2.5 rounded-xl hover:bg-gray-200 transition-all"
                                                                 title="Imprimer reçu"
                                                             >
                                                                 <FileText size={18}/>
@@ -255,9 +270,9 @@ const AdminPanel: React.FC = () => {
                                                         </>
                                                     )}
                                                     <button 
-                                                      onClick={() => deleteTransaction(t.id)}
-                                                      className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all"
-                                                      title="Supprimer"
+                                                      onClick={() => { if(confirm("Supprimer cette transaction ?")) deleteTransaction(t.id) }}
+                                                      className="p-2.5 text-red-500 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 rounded-xl transition-all"
+                                                      title="Supprimer la transaction"
                                                     >
                                                         <Trash2 size={18}/>
                                                     </button>
@@ -317,31 +332,32 @@ const AdminPanel: React.FC = () => {
 
              {/* SETTINGS TAB */}
              {currentTab === 'settings' && (
-                 <div className="max-w-2xl mx-auto space-y-8">
+                 <div className="max-w-3xl mx-auto space-y-8">
                     <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-gray-100 dark:border-slate-800 shadow-xl">
                         <div className="flex items-center gap-3 mb-8">
                             <div className="p-3 bg-blue-100 dark:bg-blue-900/30 text-primary rounded-2xl"><LinkIcon size={24}/></div>
-                            <h3 className="text-xl font-bold">Ressources Google Drive</h3>
+                            <h3 className="text-xl font-bold">Ressources & Liens Externes</h3>
                         </div>
                         
-                        <div className="space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             {[
                                 { label: "Fiche d'Inscription", key: "inscriptionUrl", current: globalResources.inscriptionUrl },
                                 { label: "Contrat de Formation", key: "contractUrl", current: globalResources.contractUrl },
-                                { label: "Contenu Pédagogique (Pack Drive)", key: "courseContentUrl", current: globalResources.courseContentUrl },
+                                { label: "Pack Cours (Drive)", key: "courseContentUrl", current: globalResources.courseContentUrl },
                                 { label: "Lien WhatsApp VIP", key: "whatsappLink", current: globalResources.whatsappLink },
+                                { label: "Guide Installation Overleaf", key: "overleafGuideUrl", current: (globalResources as any).overleafGuideUrl },
                             ].map(item => (
-                                <div key={item.key} className="space-y-2">
-                                    <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">{item.label}</label>
+                                <div key={item.key} className="space-y-2 col-span-1 md:even:col-span-1 md:odd:col-span-1">
+                                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">{item.label}</label>
                                     <div className="flex gap-2">
                                         <input 
                                             type="text" 
                                             defaultValue={item.current || ''}
                                             onBlur={(e) => updateGlobalResource(item.key as any, e.target.value)}
-                                            className="flex-1 p-3 bg-gray-50 dark:bg-slate-800 rounded-xl text-sm font-mono border-none focus:ring-2 focus:ring-primary outline-none"
-                                            placeholder="https://drive.google.com/..."
+                                            className="flex-1 p-3 bg-gray-50 dark:bg-slate-800 rounded-xl text-xs font-mono border border-transparent focus:border-primary outline-none"
+                                            placeholder="URL..."
                                         />
-                                        <div className="bg-green-500/10 text-green-500 p-3 rounded-xl"><Save size={18}/></div>
+                                        <div className="bg-green-500/10 text-green-500 p-3 rounded-xl flex items-center justify-center"><Save size={16}/></div>
                                     </div>
                                 </div>
                             ))}
@@ -353,7 +369,7 @@ const AdminPanel: React.FC = () => {
                         <div>
                             <h4 className="font-bold text-orange-800 dark:text-orange-300">Note de sécurité</h4>
                             <p className="text-sm text-orange-700 dark:text-orange-400 mt-1">
-                                Assurez-vous que les liens Drive sont configurés sur "Tous les utilisateurs disposant du lien peuvent consulter" pour que vos clients puissent y accéder.
+                                Tous les changements effectués ici sont répercutés instantanément sur l'espace ressources de vos clients. Assurez-vous que les partages Drive sont configurés en "Lecture" publique.
                             </p>
                         </div>
                     </div>
