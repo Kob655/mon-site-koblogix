@@ -1,10 +1,10 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { 
-  Lock, LayoutDashboard, LogOut, Check, X, Eye, EyeOff, FileText, FileCheck,
-  Search, RotateCcw, AlertTriangle, Clock, RefreshCw, Save, 
-  Shield, TrendingUp, Users, DollarSign, ChevronRight, Trash2, 
-  Calendar, Link as LinkIcon, Award, Download, ListFilter, Settings as SettingsIcon, UploadCloud, PieChart, Filter
+  Shield, LayoutDashboard, Calendar, Settings as SettingsIcon, LogOut, 
+  Search, Download, Trash2, Check, Award, RefreshCw, UploadCloud, 
+  Eye, EyeOff, DollarSign, Clock, Users, Save, FileCheck, Link as LinkIcon,
+  XCircle, Globe, Lock
 } from 'lucide-react';
 import Modal from './ui/Modal';
 import { formatPrice } from '../utils';
@@ -13,35 +13,38 @@ import { exportToExcel } from '../utils/exports';
 
 const AdminPanel: React.FC = () => {
   const [isAuth, setIsAuth] = useState(false);
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
+  const [showPass, setShowPass] = useState(false);
   const [loginError, setLoginError] = useState('');
-  const [currentTab, setCurrentTab] = useState<'dashboard' | 'sessions' | 'settings'>('dashboard');
+  const [currentTab, setCurrentTab] = useState<'dashboard' | 'sessions' | 'resources' | 'settings'>('dashboard');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [typeFilter, setTypeFilter] = useState('all');
   
-  // État local déconnecté du Store pour permettre la saisie/collage fluide
-  const [localSettings, setLocalSettings] = useState<any>({});
-  const [isSettingsLoaded, setIsSettingsLoaded] = useState(false);
+  // États de brouillon pour les inputs (évite les lags au collage)
+  const [draftLinks, setDraftLinks] = useState<any>(null);
+  const [newAdminPass, setNewAdminPass] = useState('');
 
   const { 
     transactions, sessions, updateTransactionStatus, toggleCompletion, 
     deleteTransaction, clearTransactions, regenerateCode, isAdminOpen, 
     setAdminOpen, adminPassword, globalResources, saveAllGlobalResources,
-    updateSession, resetSessionSeats, updateServiceProgress
+    updateAdminPassword, updateSession, resetSessionSeats, updateServiceProgress
   } = useStore();
 
-  // Charger les réglages uniquement à l'ouverture de l'onglet Settings pour éviter les resets intempestifs
   useEffect(() => {
-    if (currentTab === 'settings' && !isSettingsLoaded) {
-      setLocalSettings(globalResources);
-      setIsSettingsLoaded(true);
-    }
-    if (currentTab !== 'settings') {
-      setIsSettingsLoaded(false);
+    if (currentTab === 'resources' && globalResources && !draftLinks) {
+      setDraftLinks({ ...globalResources });
     }
   }, [currentTab, globalResources]);
+
+  const handleLogin = () => {
+    if (passwordInput === adminPassword) {
+      setIsAuth(true);
+      setLoginError('');
+    } else {
+      setLoginError("Mot de passe incorrect");
+    }
+  };
 
   const filteredData = useMemo(() => {
     return transactions.filter(t => {
@@ -52,331 +55,250 @@ const AdminPanel: React.FC = () => {
         (t.paymentRef && t.paymentRef.toLowerCase().includes(term))
       );
       const matchStatus = (statusFilter === 'all' || t.status === statusFilter);
-      const matchType = (typeFilter === 'all' || t.type === typeFilter);
-      return matchSearch && matchStatus && matchType;
+      return matchSearch && matchStatus;
     });
-  }, [transactions, searchTerm, statusFilter, typeFilter]);
+  }, [transactions, searchTerm, statusFilter]);
 
   const stats = useMemo(() => {
     const approved = transactions.filter(t => t.status === 'approved');
     const revenue = approved.reduce((acc, t) => acc + t.amount, 0);
-    const revenueService = approved.filter(t => t.type === 'service' || t.type === 'custom').reduce((acc, t) => acc + t.amount, 0);
-    const revenueFormation = approved.filter(t => ['formation_full', 'reservation', 'inscription'].includes(t.type)).reduce((acc, t) => acc + t.amount, 0);
-    const revenueAI = approved.filter(t => t.type === 'ai_pack').reduce((acc, t) => acc + t.amount, 0);
-    
-    return { 
-      revenue, 
-      revenueService,
-      revenueFormation,
-      revenueAI,
-      pending: transactions.filter(t => t.status === 'pending').length, 
-      count: transactions.length,
-      certified: approved.filter(t => t.isCompleted).length
-    };
+    return { revenue, pending: transactions.filter(t => t.status === 'pending').length, count: transactions.length, certified: approved.filter(t => t.isCompleted).length };
   }, [transactions]);
 
-  const handleLogin = () => {
-    if (password === adminPassword) {
-      setIsAuth(true);
-      setLoginError('');
-    } else {
-      setLoginError("Mot de passe incorrect");
-    }
+  const handleSaveLinks = async () => {
+    if (draftLinks) await saveAllGlobalResources(draftLinks);
   };
 
-  const confirmClear = () => {
-    if (window.confirm("Êtes-vous sûr de vouloir vider TOUT l'historique ? Cette action est irréversible.")) {
-      clearTransactions();
-    }
-  };
-
-  const handleDeliverFile = (id: string) => {
-    const url = prompt("Entrez l'URL du fichier à livrer (Google Drive, etc.) :");
-    if (url) {
-      updateServiceProgress(id, 100, { name: "Document Finalisé", url });
-    }
-  };
-
-  const handleSaveSettings = async () => {
-    await saveAllGlobalResources(localSettings);
-  };
-
-  const exportSessionParticipants = (sessionId: string) => {
-    const participants = transactions.filter(t => 
-      t.status === 'approved' && 
-      t.items.some(item => item.sessionId === sessionId)
-    );
-    
-    if (participants.length === 0) {
-      alert("Aucun participant validé pour cette session.");
-      return;
-    }
-    
-    // Logique export excel simplifiée
-    exportToExcel(participants);
+  const handleUpdatePassword = async () => {
+    if (newAdminPass.length < 4) return alert("Le mot de passe doit faire au moins 4 caractères.");
+    await updateAdminPassword(newAdminPass);
+    setNewAdminPass('');
   };
 
   if (!isAdminOpen) return null;
 
   return (
     <Modal 
-      isOpen={isAdminOpen} 
-      onClose={() => setAdminOpen(false)} 
-      title="Console d'Administration KOBLOGIX" 
-      maxWidth="max-w-6xl" 
-      headerColor="bg-slate-900"
+      isOpen={isAdminOpen} onClose={() => setAdminOpen(false)} title="Console Administrative KOBLOGIX" 
+      maxWidth="max-w-6xl" headerColor="bg-slate-900"
     >
       <div className="min-h-[60vh] text-slate-800 dark:text-gray-100 font-sans pb-8">
         {!isAuth ? (
-          <div className="flex flex-col items-center justify-center py-12 animate-fadeIn">
-             <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-6 text-slate-400">
-                <Shield size={40} />
-             </div>
-             <h3 className="text-2xl font-bold mb-6">Accès Sécurisé Admin</h3>
-             <div className="w-full max-w-sm relative mb-4">
+          <div className="flex flex-col items-center justify-center py-16 animate-fadeIn">
+             <Shield size={64} className="text-slate-400 mb-8" />
+             <h3 className="text-2xl font-black mb-8">Authentification Requise</h3>
+             <div className="w-full max-w-sm relative mb-6">
                 <input 
-                    type={showPassword ? "text" : "password"} 
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
+                    type={showPass ? "text" : "password"} value={passwordInput}
+                    onChange={e => setPasswordInput(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && handleLogin()}
-                    className="w-full p-4 border dark:border-slate-700 rounded-2xl text-center text-lg bg-white dark:bg-slate-800 focus:ring-2 focus:ring-primary outline-none"
+                    className="w-full p-5 border-2 dark:border-slate-700 rounded-2xl text-center bg-white dark:bg-slate-800 outline-none focus:ring-4 focus:ring-primary/20 transition-all font-bold text-lg"
                     placeholder="Entrez le mot de passe..."
                 />
-                <button onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-primary transition-colors">
-                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                <button onClick={() => setShowPass(!showPass)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">
+                  {showPass ? <EyeOff size={20}/> : <Eye size={20}/>}
                 </button>
              </div>
-             {loginError && <p className="text-red-500 text-sm font-bold mb-4">{loginError}</p>}
-             <button onClick={handleLogin} className="w-full max-w-sm bg-primary text-white py-4 rounded-2xl font-bold shadow-lg">Connexion</button>
+             {loginError && <p className="text-red-500 font-bold mb-6 flex items-center gap-2"><XCircle size={16}/> {loginError}</p>}
+             <button onClick={handleLogin} className="w-full max-w-sm bg-primary text-white py-5 rounded-2xl font-black text-lg shadow-xl shadow-primary/20 transition-all active:scale-95">SE CONNECTER</button>
           </div>
         ) : (
           <div className="space-y-6 animate-fadeIn">
-             {/* Navigation Bar */}
-             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gray-50 dark:bg-slate-800/50 p-3 rounded-2xl border border-gray-100 dark:border-slate-700">
-                 <div className="flex flex-wrap gap-2">
-                     <button onClick={() => setCurrentTab('dashboard')} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${currentTab === 'dashboard' ? 'bg-white dark:bg-slate-700 shadow-md text-primary' : 'text-gray-500 hover:bg-white/50 dark:hover:bg-slate-800'}`}>
-                        <LayoutDashboard size={18}/> Dashboard
-                     </button>
-                     <button onClick={() => setCurrentTab('sessions')} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${currentTab === 'sessions' ? 'bg-white dark:bg-slate-700 shadow-md text-primary' : 'text-gray-500 hover:bg-white/50 dark:hover:bg-slate-800'}`}>
-                        <Calendar size={18}/> Sessions & Participants
-                     </button>
-                     <button onClick={() => setCurrentTab('settings')} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all ${currentTab === 'settings' ? 'bg-white dark:bg-slate-700 shadow-md text-primary' : 'text-gray-500 hover:bg-white/50 dark:hover:bg-slate-800'}`}>
-                        <SettingsIcon size={18}/> Paramètres du site
-                     </button>
+             {/* Navigation par Onglets */}
+             <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-gray-100 dark:bg-slate-800 p-2 rounded-3xl">
+                 <div className="flex gap-1 flex-wrap justify-center">
+                     {[
+                        { id: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18}/> },
+                        { id: 'sessions', label: 'Inscriptions', icon: <Calendar size={18}/> },
+                        { id: 'resources', label: 'Liens Drive', icon: <Globe size={18}/> },
+                        { id: 'settings', label: 'Sécurité', icon: <Lock size={18}/> }
+                     ].map(tab => (
+                        <button key={tab.id} onClick={() => setCurrentTab(tab.id as any)} className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-sm font-bold transition-all ${currentTab === tab.id ? 'bg-white dark:bg-slate-700 shadow-lg text-primary scale-105' : 'text-gray-500 hover:bg-gray-200 dark:hover:bg-slate-700'}`}>
+                           {tab.icon} {tab.label}
+                        </button>
+                     ))}
                  </div>
-                 <div className="flex gap-2">
-                    <button onClick={() => window.location.reload()} className="p-2 bg-gray-100 dark:bg-slate-800 text-gray-500 hover:text-primary rounded-xl transition-colors"><RefreshCw size={20}/></button>
-                    <button onClick={() => setIsAuth(false)} className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-xl text-sm font-bold hover:bg-red-600 transition-colors"><LogOut size={18}/> Quitter</button>
-                 </div>
+                 <button onClick={() => setIsAuth(false)} className="px-6 py-3 bg-red-500 text-white rounded-2xl text-sm font-black flex items-center gap-2 shadow-lg hover:bg-red-600">
+                    <LogOut size={18}/> DÉCONNEXION
+                 </button>
              </div>
 
              {/* DASHBOARD TAB */}
              {currentTab === 'dashboard' && (
-                 <div className="space-y-8 text-left">
-                    {/* Visual Stats */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <div className="bg-gradient-to-br from-green-600 to-green-700 p-6 rounded-3xl text-white shadow-lg">
-                            <div className="flex justify-between items-start mb-4">
-                                <DollarSign size={24} className="opacity-50"/>
-                                <TrendingUp size={20} className="text-green-300"/>
-                            </div>
-                            <div className="text-2xl font-black">{formatPrice(stats.revenue)}</div>
-                            <div className="text-[10px] uppercase font-bold opacity-70 tracking-widest">Revenu Total Validé</div>
+                 <div className="space-y-6 text-left">
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div className="bg-primary p-6 rounded-[2rem] text-white shadow-xl">
+                            <DollarSign className="opacity-50 mb-2" size={24}/>
+                            <div className="text-3xl font-black">{formatPrice(stats.revenue)}</div>
+                            <div className="text-[10px] uppercase font-bold opacity-70 tracking-widest">Revenu Validé</div>
                         </div>
-
-                        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-gray-100 dark:border-slate-800 shadow-sm">
-                            <Clock size={24} className="text-orange-500 mb-4"/>
-                            <div className="text-3xl font-black text-slate-800 dark:text-white">{stats.pending}</div>
+                        <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-gray-100 dark:border-slate-800 shadow-sm border-b-4 border-orange-500">
+                            <Clock className="text-orange-500 mb-2" size={24}/>
+                            <div className="text-3xl font-black text-orange-500">{stats.pending}</div>
                             <div className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">En attente</div>
                         </div>
-
-                        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-gray-100 dark:border-slate-800 shadow-sm">
-                            <Users size={24} className="text-blue-500 mb-4"/>
-                            <div className="text-3xl font-black text-slate-800 dark:text-white">{transactions.length}</div>
-                            <div className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">Clients</div>
+                        <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-gray-100 dark:border-slate-800 shadow-sm border-b-4 border-blue-500">
+                            <Users className="text-blue-500 mb-2" size={24}/>
+                            <div className="text-3xl font-black">{transactions.length}</div>
+                            <div className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">Clients Totaux</div>
                         </div>
-
-                        <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-gray-100 dark:border-slate-800 shadow-sm">
-                            <Award size={24} className="text-purple-500 mb-4"/>
-                            <div className="text-3xl font-black text-slate-800 dark:text-white">{stats.certified}</div>
+                        <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-gray-100 dark:border-slate-800 shadow-sm border-b-4 border-purple-500">
+                            <Award className="text-purple-500 mb-2" size={24}/>
+                            <div className="text-3xl font-black text-purple-500">{stats.certified}</div>
                             <div className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">Certifiés</div>
                         </div>
                     </div>
 
-                    {/* Filters & Actions */}
-                    <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-gray-100 dark:border-slate-800 shadow-sm flex flex-col md:flex-row gap-4 items-center">
-                        <div className="relative flex-1 w-full">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18}/>
+                    <div className="flex flex-col md:flex-row gap-4 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-gray-100 dark:border-slate-800 shadow-sm">
+                        <div className="relative flex-1">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20}/>
                             <input 
-                              type="text" 
-                              placeholder="Rechercher client ou ref..." 
-                              value={searchTerm} 
+                              type="text" placeholder="Rechercher par nom, téléphone, réf..." value={searchTerm} 
                               onChange={e => setSearchTerm(e.target.value)} 
-                              className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-primary text-sm"
+                              className="w-full pl-12 pr-4 py-3 bg-gray-50 dark:bg-slate-800 rounded-xl outline-none text-sm border-2 border-transparent focus:border-primary transition-all"
                             />
                         </div>
-                        <div className="flex gap-2 w-full md:w-auto overflow-x-auto">
-                            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="bg-gray-100 dark:bg-slate-800 p-2.5 rounded-xl text-xs font-bold outline-none">
-                                <option value="all">Statuts</option>
-                                <option value="pending">En attente</option>
-                                <option value="approved">Validés</option>
+                        <div className="flex gap-2">
+                            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="bg-gray-50 dark:bg-slate-800 p-3 rounded-xl text-xs font-black outline-none border border-gray-100 dark:border-slate-700">
+                                <option value="all">TOUS STATUTS</option>
+                                <option value="pending">EN ATTENTE</option>
+                                <option value="approved">VALIDÉS</option>
                             </select>
-                            <button onClick={() => exportToExcel(transactions)} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2">
-                                <Download size={16}/> Export
+                            <button onClick={() => exportToExcel(transactions)} className="bg-blue-600 text-white px-6 py-3 rounded-xl text-xs font-black flex items-center gap-2 shadow-lg active:scale-95 transition-all">
+                                <Download size={18}/> EXPORTER EXCEL
                             </button>
-                            <button onClick={confirmClear} className="bg-red-50 text-red-500 px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2">
-                                <Trash2 size={16}/> Vider
+                            <button onClick={() => { if(window.confirm("Voulez-vous vraiment vider tout l'historique ?")) clearTransactions(); }} className="bg-red-50 text-red-500 px-6 py-3 rounded-xl text-xs font-black flex items-center gap-2 hover:bg-red-100 transition-colors">
+                                <Trash2 size={18}/> VIDER
                             </button>
                         </div>
                     </div>
 
-                    {/* Transactions List */}
-                    <div className="space-y-4">
-                        {filteredData.length === 0 ? (
-                            <div className="text-center py-20 text-gray-500 italic">Aucune transaction trouvée.</div>
-                        ) : (
-                            filteredData.map(t => (
-                                <div key={t.id} className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 p-5 rounded-[2rem] flex flex-col md:flex-row items-center gap-6 hover:shadow-lg transition-all">
-                                    <div className="flex-1 w-full text-left">
-                                        <div className="flex items-center gap-3 mb-1">
-                                            <span className={`w-3 h-3 rounded-full ${t.status === 'approved' ? 'bg-green-500' : 'bg-orange-500'}`}></span>
-                                            <h4 className="font-black text-lg">{t.name}</h4>
-                                            <span className="text-[10px] bg-blue-100 dark:bg-blue-900/30 text-blue-600 px-2 py-0.5 rounded-full uppercase font-bold">{t.type}</span>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-4 text-xs text-gray-500">
-                                            <div>{t.phone}</div>
-                                            <div>Ref: {t.paymentRef || 'N/A'}</div>
-                                        </div>
-                                        {t.uploadedContractUrl && (
-                                            <a href={t.uploadedContractUrl} target="_blank" className="inline-flex items-center gap-2 mt-2 text-[10px] font-bold text-purple-500 bg-purple-50 dark:bg-purple-900/20 px-2 py-1 rounded-full">
-                                                <FileCheck size={12}/> Contrat PDF disponible
-                                            </a>
-                                        )}
+                    <div className="space-y-3">
+                        {filteredData.map(t => (
+                            <div key={t.id} className="bg-white dark:bg-slate-900 border border-gray-100 dark:border-slate-800 p-5 rounded-[2.5rem] flex flex-col md:flex-row items-center justify-between gap-6 hover:shadow-xl transition-all group">
+                                <div className="text-left flex-1 w-full">
+                                    <div className="flex items-center gap-3 mb-2">
+                                        <span className={`w-3 h-3 rounded-full ${t.status === 'approved' ? 'bg-green-500' : 'bg-orange-500'}`}></span>
+                                        <h4 className="font-black text-lg">{t.name}</h4>
+                                        <span className="text-[10px] bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300 px-2 py-0.5 rounded-full uppercase font-black">{t.type}</span>
                                     </div>
-                                    <div className="text-right w-full md:w-auto">
-                                        <div className="text-xl font-black text-slate-900 dark:text-white mb-2">{formatPrice(t.amount)}</div>
-                                        <div className="flex gap-2 justify-end">
-                                            {t.status === 'pending' ? (
-                                                <button onClick={() => updateTransactionStatus(t.id, 'approved')} className="bg-green-600 hover:bg-green-700 text-white p-2 rounded-xl transition-all"><Check size={20}/></button>
-                                            ) : (
-                                                <>
-                                                    <button onClick={() => toggleCompletion(t.id)} className={`p-2 rounded-xl ${t.isCompleted ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-slate-800 text-gray-400'}`} title="Certification"><Award size={20}/></button>
-                                                    <button onClick={() => handleDeliverFile(t.id)} className={`p-2 rounded-xl ${t.deliveredFile ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-slate-800 text-gray-400'}`} title="Livrer fichier"><UploadCloud size={20}/></button>
-                                                    <button onClick={() => regenerateCode(t.id)} className="p-2 bg-gray-100 dark:bg-slate-800 text-gray-400 hover:text-primary rounded-xl" title="Code"><RefreshCw size={20}/></button>
-                                                </>
-                                            )}
-                                            <button onClick={() => deleteTransaction(t.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><Trash2 size={20}/></button>
+                                    <div className="grid grid-cols-2 gap-4 text-xs text-gray-400 font-medium">
+                                        <div className="flex items-center gap-1"><Clock size={12}/> {t.date}</div>
+                                        <div className="flex items-center gap-1 font-mono uppercase tracking-widest"><Shield size={12}/> {t.paymentRef || 'N/A'}</div>
+                                    </div>
+                                    {t.uploadedContractUrl && (
+                                        <div className="mt-2 text-[10px] font-black text-purple-500 bg-purple-50 dark:bg-purple-900/20 px-3 py-1 rounded-full w-fit flex items-center gap-2 border border-purple-100 dark:border-purple-800">
+                                            <FileCheck size={14}/> CONTRAT REÇU
                                         </div>
+                                    )}
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    <div className="text-right mr-4 font-mono">
+                                        <div className="text-xl font-black">{formatPrice(t.amount)}</div>
+                                        <div className="text-[10px] font-bold text-gray-400">{t.code || 'NON VALIDÉ'}</div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        {t.status === 'pending' ? (
+                                            <button onClick={() => updateTransactionStatus(t.id, 'approved')} className="bg-green-600 hover:bg-green-700 text-white p-3.5 rounded-2xl shadow-lg active:scale-90 transition-all"><Check size={22}/></button>
+                                        ) : (
+                                            <>
+                                                <button onClick={() => toggleCompletion(t.id)} className={`p-3.5 rounded-2xl transition-all shadow-lg active:scale-90 ${t.isCompleted ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-slate-800 text-gray-400 hover:text-purple-500'}`} title="Décerner Diplôme"><Award size={22}/></button>
+                                                <button onClick={() => { const u = prompt("URL du Fichier Livrable (Drive) :"); if(u) updateServiceProgress(t.id, 100, { name: "Document Livré", url: u }); }} className={`p-3.5 rounded-2xl transition-all shadow-lg active:scale-90 ${t.deliveredFile ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-slate-800 text-gray-400 hover:text-blue-500'}`} title="Livrer Travail"><UploadCloud size={22}/></button>
+                                                <button onClick={() => regenerateCode(t.id)} className="p-3.5 bg-gray-100 dark:bg-slate-800 text-gray-400 hover:text-primary rounded-2xl transition-all" title="Régénérer Code"><RefreshCw size={22}/></button>
+                                            </>
+                                        )}
+                                        <button onClick={() => { if(window.confirm("Supprimer cette transaction ?")) deleteTransaction(t.id); }} className="p-3.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-2xl transition-all"><Trash2 size={22}/></button>
                                     </div>
                                 </div>
-                            ))
-                        )}
+                            </div>
+                        ))}
                     </div>
                  </div>
              )}
 
              {/* SESSIONS TAB */}
              {currentTab === 'sessions' && (
-                 <div className="space-y-6 text-left">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {sessions.map(session => {
-                            const participants = transactions.filter(t => 
-                              t.status === 'approved' && 
-                              t.items.some(i => i.sessionId === session.id)
-                            );
-                            return (
-                                <div key={session.id} className="bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border border-gray-100 dark:border-slate-800 shadow-sm flex flex-col h-full">
-                                    <div className="flex justify-between items-start mb-4">
-                                        <div>
-                                            <h4 className="font-black text-lg">{session.title}</h4>
-                                            <p className="text-xs text-gray-500">{session.dates}</p>
-                                        </div>
-                                        <button onClick={() => exportSessionParticipants(session.id)} className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-xl">
-                                            <Download size={20}/>
-                                        </button>
+                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 text-left">
+                    {sessions.map(session => {
+                        const participants = transactions.filter(t => t.status === 'approved' && t.items.some(i => i.sessionId === session.id));
+                        return (
+                            <div key={session.id} className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] border border-gray-100 dark:border-slate-800 shadow-sm flex flex-col h-full hover:shadow-xl transition-all">
+                                <div className="flex justify-between items-start mb-6">
+                                    <div>
+                                        <h4 className="font-black text-xl">{session.title}</h4>
+                                        <p className="text-xs text-gray-500 font-bold">{session.dates}</p>
                                     </div>
-
-                                    <div className="space-y-4 flex-1">
-                                        <div className="flex justify-between text-xs font-bold">
-                                            <span className="text-gray-400">Remplissage</span>
-                                            <span className={session.available === 0 ? 'text-red-500' : 'text-green-500'}>{session.total - session.available} / {session.total}</span>
+                                    <button onClick={() => exportToExcel(participants)} className="p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-2xl hover:bg-blue-600 hover:text-white transition-all"><Download size={20}/></button>
+                                </div>
+                                <div className="space-y-6 flex-1">
+                                    <div>
+                                        <div className="flex justify-between text-[10px] font-black mb-2 uppercase tracking-widest text-gray-400">
+                                            <span>Remplissage des places</span>
+                                            <span className={session.available === 0 ? 'text-red-500' : 'text-green-600'}>{session.total - session.available} / {session.total}</span>
                                         </div>
-                                        <div className="w-full bg-gray-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-                                            <div className="bg-blue-600 h-full transition-all" style={{width: `${((session.total - session.available) / session.total) * 100}%`}}></div>
+                                        <div className="w-full bg-gray-100 dark:bg-slate-800 h-3 rounded-full overflow-hidden shadow-inner">
+                                            <div className={`h-full transition-all duration-1000 ${session.available === 0 ? 'bg-red-500' : 'bg-blue-600'}`} style={{width: `${((session.total - session.available) / session.total) * 100}%`}}></div>
                                         </div>
-                                        
-                                        <div className="pt-4 border-t border-gray-100 dark:border-slate-800">
-                                            <h5 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3 flex items-center gap-2"><Users size={12}/> Participants ({participants.length})</h5>
-                                            <div className="max-h-40 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
-                                                {participants.length === 0 ? <p className="text-[10px] italic text-gray-500">Aucun participant validé.</p> : 
-                                                    participants.map(p => (
-                                                        <div key={p.id} className="text-[11px] font-bold p-2 bg-gray-50 dark:bg-slate-800 rounded-lg flex justify-between items-center">
-                                                            <span>{p.name}</span>
-                                                            <div className="flex gap-1">
-                                                              {p.uploadedContractUrl && <FileCheck size={12} className="text-purple-500" />}
-                                                              <Check size={12} className="text-green-500"/>
-                                                            </div>
+                                    </div>
+                                    <div className="flex-1 bg-gray-50 dark:bg-slate-800/50 p-5 rounded-3xl border border-gray-100 dark:border-slate-700">
+                                        <h5 className="text-[10px] font-black uppercase text-gray-400 mb-4 flex items-center gap-2"><Users size={14}/> Participants Validés ({participants.length})</h5>
+                                        <div className="max-h-48 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                                            {participants.length === 0 ? <p className="text-[10px] italic text-gray-400 py-4 text-center">Aucun inscrit pour le moment.</p> : 
+                                                participants.map(p => (
+                                                    <div key={p.id} className="text-[11px] font-black p-3 bg-white dark:bg-slate-800 rounded-xl flex justify-between items-center shadow-sm border border-gray-50 dark:border-slate-700">
+                                                        <span className="truncate">{p.name}</span>
+                                                        <div className="flex gap-2">
+                                                          {p.uploadedContractUrl && <FileCheck size={14} className="text-purple-500"/>}
+                                                          <Check size={14} className="text-green-500"/>
                                                         </div>
-                                                    ))
-                                                }
-                                            </div>
+                                                    </div>
+                                                ))
+                                            }
                                         </div>
-
-                                        <div className="flex gap-2 pt-2 mt-auto">
-                                            <button onClick={() => resetSessionSeats(session.id)} className="flex-1 bg-gray-100 dark:bg-slate-800 py-2 rounded-xl text-[10px] font-bold text-gray-500">Reset Places</button>
-                                            <input 
-                                                type="number" 
-                                                value={session.available} 
-                                                onChange={(e) => updateSession(session.id, { available: parseInt(e.target.value) || 0 })}
-                                                className="w-16 bg-white dark:bg-slate-700 text-center rounded-xl font-bold text-xs border border-gray-100 dark:border-slate-600"
-                                            />
-                                        </div>
+                                    </div>
+                                    <div className="flex gap-2 pt-6 border-t border-gray-100 dark:border-slate-700 mt-auto">
+                                        <button onClick={() => resetSessionSeats(session.id)} className="flex-1 py-3 bg-gray-100 dark:bg-slate-800 rounded-2xl text-[10px] font-black text-gray-500 hover:bg-gray-200 transition-colors uppercase tracking-widest">Reset Places</button>
+                                        <input 
+                                            type="number" value={session.available} 
+                                            onChange={(e) => updateSession(session.id, { available: parseInt(e.target.value) || 0 })}
+                                            className="w-20 bg-white dark:bg-slate-700 text-center py-3 rounded-2xl font-black text-sm border-2 border-transparent focus:border-primary outline-none transition-all"
+                                        />
                                     </div>
                                 </div>
-                            );
-                        })}
-                    </div>
+                            </div>
+                        );
+                    })}
                  </div>
              )}
 
-             {/* SETTINGS TAB */}
-             {currentTab === 'settings' && (
-                 <div className="max-w-4xl mx-auto space-y-6 text-left">
-                    <div className="bg-white dark:bg-slate-900 p-8 rounded-[3rem] border border-gray-100 dark:border-slate-800 shadow-xl">
-                        <div className="flex justify-between items-center mb-8">
-                            <div className="flex items-center gap-3">
-                                <div className="p-3 bg-primary/10 text-primary rounded-2xl"><SettingsIcon size={24}/></div>
-                                <h3 className="text-2xl font-black">Liens des Ressources</h3>
-                            </div>
-                            <button 
-                                onClick={handleSaveSettings} 
-                                className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-2xl font-bold flex items-center gap-2 shadow-lg shadow-green-500/20 active:scale-95 transition-all"
-                            >
-                                <Save size={20}/> Sauvegarder
+             {/* RESOURCES (LINKS) TAB */}
+             {currentTab === 'resources' && draftLinks && (
+                 <div className="max-w-4xl mx-auto space-y-8 text-left animate-slideUp">
+                    <div className="bg-white dark:bg-slate-900 p-10 rounded-[4rem] border border-gray-100 dark:border-slate-800 shadow-xl relative overflow-hidden">
+                        <div className="flex justify-between items-center mb-10">
+                            <h3 className="text-2xl font-black flex items-center gap-3"><Globe size={32}/> Liens des Ressources Globales</h3>
+                            <button onClick={handleSaveLinks} className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-[2rem] font-black text-sm flex items-center gap-3 shadow-xl active:scale-95 transition-all">
+                                <Save size={22}/> ENREGISTRER TOUS LES LIENS
                             </button>
                         </div>
-
                         <div className="grid md:grid-cols-2 gap-8">
                             {[
-                                { label: "Lien Inscription (Drive)", key: "inscriptionUrl" },
-                                { label: "Lien Contrat Type (Drive)", key: "contractUrl" },
-                                { label: "Lien Pack Drive (Cours)", key: "courseContentUrl" },
-                                { label: "Lien WhatsApp VIP", key: "whatsappLink" },
-                                { label: "Lien Guide Overleaf (PDF)", key: "overleafGuideUrl" }
+                                { label: "Fiche d'Inscription (Lien Drive)", key: "inscriptionUrl" },
+                                { label: "Contrat Type PDF (Lien Drive)", key: "contractUrl" },
+                                { label: "Pack Contenu Cours (Lien Drive)", key: "courseContentUrl" },
+                                { label: "Invitation Canal WhatsApp VIP", key: "whatsappLink" },
+                                { label: "Guide Installation Overleaf", key: "overleafGuideUrl" }
                             ].map(res => (
                                 <div key={res.key} className="space-y-2">
-                                    <label className="text-[10px] font-black uppercase text-gray-500 tracking-widest">{res.label}</label>
+                                    <label className="text-[11px] font-black uppercase text-gray-500 tracking-widest">{res.label}</label>
                                     <div className="relative">
                                       <input 
-                                          type="text" 
-                                          value={localSettings[res.key] || ''} 
-                                          onChange={(e) => setLocalSettings({...localSettings, [res.key]: e.target.value})}
-                                          className="w-full p-4 bg-gray-50 dark:bg-slate-800 rounded-2xl border border-gray-100 dark:border-slate-700 outline-none focus:ring-2 focus:ring-primary text-sm font-mono"
-                                          placeholder="Collez le lien ici..."
+                                          type="text" value={draftLinks[res.key] || ''} 
+                                          onChange={(e) => setDraftLinks({...draftLinks, [res.key]: e.target.value})}
+                                          className="w-full p-5 bg-gray-50 dark:bg-slate-800 rounded-2xl border-2 border-transparent focus:border-primary outline-none transition-all text-xs font-mono shadow-inner"
+                                          placeholder="Collez le lien ici (Ctrl+V)..."
                                       />
-                                      <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-300">
-                                        <LinkIcon size={16}/>
-                                      </div>
+                                      <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-300 pointer-events-none"><LinkIcon size={18}/></div>
                                     </div>
                                 </div>
                             ))}
@@ -384,14 +306,32 @@ const AdminPanel: React.FC = () => {
                     </div>
                  </div>
              )}
+
+             {/* SETTINGS (SYSTEM) TAB */}
+             {currentTab === 'settings' && (
+                 <div className="max-w-xl mx-auto space-y-8 text-left animate-slideUp">
+                    <div className="bg-white dark:bg-slate-900 p-10 rounded-[3rem] border border-gray-100 dark:border-slate-800 shadow-xl">
+                        <h3 className="text-2xl font-black flex items-center gap-3 mb-8"><Lock size={28}/> Paramètres du Système</h3>
+                        <div className="space-y-6">
+                            <div>
+                                <label className="text-xs font-black uppercase text-gray-500 mb-2 block">Nouveau Mot de Passe Administrateur</label>
+                                <input 
+                                    type="text" value={newAdminPass} onChange={e => setNewAdminPass(e.target.value)}
+                                    placeholder="Ex: toujours plus haut"
+                                    className="w-full p-5 bg-gray-50 dark:bg-slate-800 rounded-2xl border-2 border-transparent focus:border-primary outline-none transition-all font-bold"
+                                />
+                            </div>
+                            <button onClick={handleUpdatePassword} className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black shadow-lg hover:bg-black transition-all flex items-center justify-center gap-2">
+                                <Save size={20}/> ENREGISTRER LE NOUVEAU MOT DE PASSE
+                            </button>
+                        </div>
+                    </div>
+                 </div>
+             )}
           </div>
         )}
       </div>
-      <style>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-      `}</style>
+      <style>{`.custom-scrollbar::-webkit-scrollbar { width: 4px; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }`}</style>
     </Modal>
   );
 };

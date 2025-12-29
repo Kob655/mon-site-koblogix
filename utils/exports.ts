@@ -1,277 +1,202 @@
+
 import ExcelJS from 'exceljs';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Transaction } from '../types';
 import { formatPrice } from '../utils';
 
-export const exportToExcel = async (transactions: Transaction[], period: 'week' | 'month' | 'all' = 'all') => {
+export const exportToExcel = async (transactions: Transaction[]) => {
   const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet('Rapport KOBLOGIX', {
-    views: [{ showGridLines: false }]
+  const sheet = workbook.addWorksheet('COMPTABILITÉ KOBLOGIX', {
+    views: [{ state: 'frozen', ySplit: 7 }],
+    properties: { tabColor: { argb: 'FF0077B6' } }
   });
 
-  // --- FILTRAGE PAR DATE ---
-  const now = new Date();
-  let filteredTransactions = transactions;
-  let periodLabel = "GLOBAL (TOUT)";
+  // --- CONFIGURATION DES COLONNES ---
+  sheet.columns = [
+    { header: 'ID', key: 'id', width: 15 },
+    { header: 'DATE', key: 'date', width: 12 },
+    { header: 'CLIENT', key: 'name', width: 25 },
+    { header: 'TÉLÉPHONE', key: 'phone', width: 15 },
+    { header: 'EMAIL', key: 'email', width: 25 },
+    { header: 'RÉF. PAIEMENT', key: 'paymentRef', width: 20 },
+    { header: 'MÉTHODE', key: 'method', width: 12 },
+    { header: 'TYPE', key: 'type', width: 15 },
+    { header: 'ARTICLES COMMANDÉS', key: 'items', width: 45 },
+    { header: 'MONTANT (FCFA)', key: 'amount', width: 18, style: { numFmt: '#,##0" FCFA"' } },
+    { header: 'STATUT', key: 'status', width: 12 },
+    { header: 'CODE ACCÈS', key: 'code', width: 15 }
+  ];
 
-  if (period === 'week') {
-      // Début de semaine (Lundi)
-      const day = now.getDay(); // 0 (Dim) - 6 (Sam)
-      const diff = now.getDate() - day + (day === 0 ? -6 : 1); 
-      const monday = new Date(now.setDate(diff));
-      monday.setHours(0,0,0,0);
-      
-      filteredTransactions = transactions.filter(t => new Date(t.date) >= monday);
-      periodLabel = "CETTE SEMAINE";
-  } else if (period === 'month') {
-      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-      filteredTransactions = transactions.filter(t => new Date(t.date) >= firstDay);
-      periodLabel = "CE MOIS";
-  }
+  // --- EN-TÊTE DESIGN PREMIUM ---
+  sheet.mergeCells('A1:L1');
+  const mainTitle = sheet.getCell('A1');
+  mainTitle.value = 'RAPPORT FINANCIER DÉTAILLÉ - KOBLOGIX PLATFORM';
+  mainTitle.font = { name: 'Segoe UI', size: 18, bold: true, color: { argb: 'FFFFFFFF' } };
+  mainTitle.alignment = { vertical: 'middle', horizontal: 'center' };
+  mainTitle.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0077B6' } };
 
-  // Styles
-  sheet.mergeCells('B2:H6');
-  const headerCell = sheet.getCell('B2');
-  headerCell.value = `KOBLOGIX\nServices & Formation LaTeX\nRAPPORT : ${periodLabel}\nGénéré le ` + new Date().toLocaleDateString();
-  headerCell.font = { name: 'Arial', size: 12, bold: true, color: { argb: 'FF2C3E50' } };
-  headerCell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
-  headerCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F9FF' } };
-  headerCell.border = { top: { style: 'medium', color: { argb: 'FF0077B6' } }, bottom: { style: 'medium', color: { argb: 'FF0077B6' } }, left: { style: 'medium', color: { argb: 'FF0077B6' } }, right: { style: 'medium', color: { argb: 'FF0077B6' } } };
+  sheet.mergeCells('A2:L2');
+  const subTitle = sheet.getCell('A2');
+  subTitle.value = `Export du ${new Date().toLocaleString('fr-FR')} • Document confidentiel à usage administratif`;
+  subTitle.alignment = { horizontal: 'center' };
+  subTitle.font = { italic: true, size: 10, color: { argb: 'FF475569' } };
 
-  // Calculs sur les données filtrées
-  const totalRevenue = filteredTransactions.filter(t => t.status === 'approved').reduce((acc, t) => acc + t.amount, 0);
-  const pendingCount = filteredTransactions.filter(t => t.status === 'pending').length;
-  const approvedCount = filteredTransactions.filter(t => t.status === 'approved').length;
+  // --- STATISTIQUES ---
+  const approved = transactions.filter(t => t.status === 'approved');
+  const totalRev = approved.reduce((acc, t) => acc + t.amount, 0);
 
-  // Table Stats
-  sheet.getCell('B8').value = "1. SYNTHÈSE PÉRIODE";
-  sheet.getCell('B8').font = { size: 14, bold: true, color: { argb: 'FF0077B6' } };
+  sheet.getCell('A4').value = 'RÉSUMÉ :';
+  sheet.getCell('A4').font = { bold: true };
+  sheet.getCell('B4').value = `Total Validé : ${totalRev.toLocaleString()} FCFA`;
+  sheet.getCell('B4').font = { bold: true, color: { argb: 'FF059669' } };
 
-  sheet.addTable({
-    name: 'StatsTable',
-    ref: 'B9',
-    headerRow: true,
-    totalsRow: false,
-    style: { theme: 'TableStyleMedium2', showRowStripes: true },
-    columns: [{ name: 'Indicateur' }, { name: 'Valeur' }],
-    rows: [
-      ['Chiffre d\'Affaires Validé', totalRevenue],
-      ['Volume Transactions', filteredTransactions.length],
-      ['Commandes Validées', approvedCount],
-      ['Commandes En Attente', pendingCount]
-    ],
+  // --- STYLE DES EN-TÊTES DE TABLEAU ---
+  const headerRow = sheet.getRow(7);
+  // Fix: Line 47: Type '(string | string[])[]' is not assignable to type 'CellValue[]'. Ensure we handle possible array headers.
+  headerRow.values = (sheet.columns || []).map(c => Array.isArray(c.header) ? c.header.join(' ') : (c.header as string));
+  headerRow.eachCell((cell) => {
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E293B' } };
+    cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+    cell.border = { 
+      top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'medium'}, right: {style:'thin'} 
+    };
   });
-  sheet.getCell('C10').numFmt = '#,##0 "FCFA"';
 
-  // Table Detailed
-  const startRowDetailed = 16;
-  sheet.getCell(`B${startRowDetailed - 1}`).value = "2. DÉTAIL DES TRANSACTIONS";
-  sheet.getCell(`B${startRowDetailed - 1}`).font = { size: 14, bold: true, color: { argb: 'FF0077B6' } };
+  // --- INSERTION DES DONNÉES ---
+  transactions.forEach((t) => {
+    const row = sheet.addRow({
+      id: t.id.substring(0, 8),
+      date: t.date,
+      name: t.name,
+      phone: t.phone,
+      email: t.email || 'N/A',
+      paymentRef: t.paymentRef || 'MANUEL',
+      method: t.method.toUpperCase(),
+      type: t.type.toUpperCase(),
+      items: t.items.map(i => `${i.name} [${formatPrice(i.price)}]`).join(' | '),
+      amount: t.amount,
+      status: t.status === 'approved' ? 'VALIDÉ' : 'EN ATTENTE',
+      code: t.code || '-'
+    });
 
-  const detailedRows = filteredTransactions.map(t => [
-      t.id, t.date, t.name, t.phone, t.paymentRef || '-', t.method.toUpperCase(), t.items.map(i => i.name).join(' + '), t.amount, t.status.toUpperCase(), t.code || '-'
-  ]);
+    row.eachCell(cell => {
+      cell.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+      cell.font = { size: 10 };
+      cell.border = { bottom: { style: 'thin', color: { argb: 'FFE2E8F0' } } };
+    });
 
-  if (detailedRows.length > 0) {
-      sheet.addTable({
-        name: 'TransactionsTable',
-        ref: `B${startRowDetailed}`,
-        headerRow: true,
-        totalsRow: true,
-        style: { theme: 'TableStyleMedium9', showRowStripes: true },
-        columns: [
-          { name: 'ID', filterButton: true },
-          { name: 'Date', filterButton: true },
-          { name: 'Client', filterButton: true },
-          { name: 'Téléphone', filterButton: true },
-          { name: 'Ref Paiement', filterButton: true },
-          { name: 'Méthode', filterButton: true },
-          { name: 'Détails Commande', filterButton: true },
-          { name: 'Montant', filterButton: true, totalsRowFunction: 'sum' },
-          { name: 'Statut', filterButton: true },
-          { name: 'Code Accès', filterButton: true },
-        ],
-        rows: detailedRows,
-      });
+    const statusCell = row.getCell('status');
+    if (t.status === 'approved') {
+      statusCell.font = { color: { argb: 'FF059669' }, bold: true };
+    } else {
+      statusCell.font = { color: { argb: 'FFD97706' }, bold: true };
+    }
+  });
 
-      sheet.getColumn('B').width = 10;
-      sheet.getColumn('D').width = 25;
-      sheet.getColumn('H').width = 40;
-      sheet.getColumn('I').width = 15;
-      
-      const amountColIndex = 9;
-      for(let i=startRowDetailed + 1; i<=startRowDetailed + detailedRows.length + 1; i++) {
-          sheet.getCell(i, amountColIndex).numFmt = '#,##0 "FCFA"';
-      }
-  } else {
-      sheet.getCell(`B${startRowDetailed}`).value = "Aucune transaction sur cette période.";
-  }
-
+  // --- TÉLÉCHARGEMENT ---
   const buffer = await workbook.xlsx.writeBuffer();
   const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const url = window.URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `KOBLOGIX_EXPORT_${periodLabel}_${new Date().toISOString().split('T')[0]}.xlsx`;
+  a.download = `KOBLOGIX_EXCEL_PRO_${new Date().toISOString().split('T')[0]}.xlsx`;
   a.click();
   window.URL.revokeObjectURL(url);
 };
 
 export const generateReceipt = (transaction: Transaction) => {
   const doc = new jsPDF();
-  
-  // --- 1. DESSIN DU LOGO (VECTORIEL) ---
-  // Fond bleu logo
-  doc.setFillColor(0, 119, 182); // Primary
-  doc.roundedRect(15, 15, 15, 15, 3, 3, 'F');
-  // Lettre K
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(28);
-  doc.setFont("helvetica", "bold");
-  doc.text("K", 18.5, 26);
+  // Fix: Explicitly type colors as tuples for jspdf-autotable compatibility.
+  const primaryColor: [number, number, number] = [0, 119, 182]; // #0077B6
+  const secondaryColor: [number, number, number] = [30, 41, 59]; // #1E293B
 
-  // --- 2. EN-TÊTE ---
-  // Nom Entreprise
-  doc.setTextColor(44, 62, 80);
+  // En-tête de couleur
+  doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.rect(0, 0, 210, 40, 'F');
+
+  // Logo K
+  doc.setFillColor(255, 255, 255);
+  doc.roundedRect(15, 10, 20, 20, 4, 4, 'F');
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
   doc.setFontSize(22);
-  doc.text("KOBLOGIX", 35, 22);
-  doc.setFontSize(10);
-  doc.setTextColor(100);
-  doc.setFont("helvetica", "normal");
-  doc.text("Services de Rédaction Scientifique & Formation", 35, 28);
-
-  // Titre "REÇU" à droite
-  doc.setFillColor(240, 248, 255); // Light Blue bg
-  doc.rect(130, 15, 65, 20, 'F');
-  doc.setTextColor(0, 119, 182);
-  doc.setFontSize(16);
   doc.setFont("helvetica", "bold");
-  doc.text("REÇU DE PAIEMENT", 162.5, 23, { align: "center" });
+  doc.text("K", 21, 25);
+
+  // Titre Société
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(24);
+  doc.text("KOBLOGIX", 45, 20);
   doc.setFontSize(10);
-  doc.setTextColor(80);
-  doc.text(`# ${transaction.id}`, 162.5, 29, { align: "center" });
+  doc.setFont("helvetica", "normal");
+  doc.text("Expertise LaTeX & Services Scientifiques", 45, 27);
 
-  // --- 3. INFORMATIONS (2 Colonnes) ---
-  const yInfo = 50;
-  
-  // Emetteur (Koblogix)
+  // Titre Reçu
+  doc.setFontSize(18);
+  doc.setFont("helvetica", "bold");
+  doc.text("REÇU DE PAIEMENT", 195, 25, { align: "right" });
+
+  // Informations Transaction
+  doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
   doc.setFontSize(10);
-  doc.setTextColor(150);
-  doc.text("ÉMETTEUR", 15, yInfo);
-  doc.setDrawColor(0, 119, 182);
-  doc.setLineWidth(0.5);
-  doc.line(15, yInfo + 2, 80, yInfo + 2);
-  
-  doc.setTextColor(50);
+  doc.text(`N° Commande : ${transaction.id.substring(0, 12).toUpperCase()}`, 15, 55);
+  doc.text(`Date : ${new Date(transaction.date).toLocaleDateString('fr-FR')}`, 15, 60);
+  doc.text(`Méthode : ${transaction.method.toUpperCase()} (${transaction.paymentRef || 'Ref N/A'})`, 15, 65);
+
+  // Informations Client
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(120, 45, 75, 25, 3, 3, 'F');
   doc.setFont("helvetica", "bold");
-  doc.text("KOBLOGIX TOGO", 15, yInfo + 8);
+  doc.text("FACTURÉ À :", 125, 52);
   doc.setFont("helvetica", "normal");
-  doc.text("Lomé, Togo", 15, yInfo + 13);
-  doc.text("+228 98 28 65 41", 15, yInfo + 18);
-  doc.text("Koblogixofficiel@gmail.com", 15, yInfo + 23);
+  doc.text(transaction.name, 125, 58);
+  doc.text(transaction.phone, 125, 63);
+  if (transaction.email) doc.text(transaction.email, 125, 68);
 
-  // Client
-  doc.setTextColor(150);
-  doc.text("CLIENT", 110, yInfo);
-  doc.line(110, yInfo + 2, 195, yInfo + 2);
-  
-  doc.setTextColor(50);
-  doc.setFont("helvetica", "bold");
-  doc.text(transaction.name, 110, yInfo + 8);
-  doc.setFont("helvetica", "normal");
-  doc.text(transaction.email || "Email non renseigné", 110, yInfo + 13);
-  doc.text(transaction.phone, 110, yInfo + 18);
-  doc.text(`Réf. Paiement: ${transaction.paymentRef || 'N/A'}`, 110, yInfo + 23);
-
-  // --- 4. TABLEAU DES ARTICLES ---
-  const tableColumn = ["Désignation", "Type", "Prix Total"];
-  const tableRows: any[] = [];
-
-  transaction.items.forEach(item => {
-    tableRows.push([
-      item.name + (item.details ? `\n(${item.details})` : ''),
-      item.type.toUpperCase().replace('_', ' '),
-      formatPrice(item.price)
-    ]);
-  });
+  // Tableau des articles
+  const tableRows = transaction.items.map(item => [
+    item.name, 
+    item.details || 'Prestation standard', 
+    formatPrice(item.price)
+  ]);
 
   autoTable(doc, {
-    startY: yInfo + 35,
-    head: [tableColumn],
+    startY: 80,
+    head: [['Description', 'Détails', 'Montant']],
     body: tableRows,
-    theme: 'grid',
-    headStyles: { 
-        fillColor: [0, 119, 182], 
-        textColor: 255, 
-        fontStyle: 'bold',
-        halign: 'center'
-    },
-    columnStyles: {
-        0: { cellWidth: 100 },
-        2: { halign: 'right', fontStyle: 'bold' }
-    },
-    styles: { cellPadding: 3, fontSize: 10, valign: 'middle' },
-    alternateRowStyles: { fillColor: [245, 250, 255] }
+    theme: 'striped',
+    headStyles: { fillColor: primaryColor, textColor: 255, fontStyle: 'bold' },
+    styles: { fontSize: 9, cellPadding: 5 },
+    columnStyles: { 2: { halign: 'right', fontStyle: 'bold' } }
   });
 
-  // --- 5. TOTAUX & TAMPON ---
-  // @ts-ignore
-  let finalY = (doc as any).lastAutoTable.finalY + 10;
-  
-  // Zone Totale à droite
-  doc.setFillColor(240, 248, 255);
-  doc.roundedRect(110, finalY, 85, 25, 2, 2, 'F');
-  
-  doc.setFontSize(10);
-  doc.setTextColor(100);
-  doc.text("Méthode:", 115, finalY + 8);
-  doc.text(transaction.method.toUpperCase(), 190, finalY + 8, { align: 'right' });
-  
-  doc.text("Date:", 115, finalY + 14);
-  doc.text(transaction.date, 190, finalY + 14, { align: 'right' });
-  
-  doc.setFontSize(14);
-  doc.setTextColor(0, 119, 182);
+  // Total
+  const finalY = (doc as any).lastAutoTable.finalY + 10;
+  doc.setFontSize(12);
   doc.setFont("helvetica", "bold");
-  doc.text("TOTAL:", 115, finalY + 21);
-  doc.text(formatPrice(transaction.amount), 190, finalY + 21, { align: 'right' });
+  doc.text("MONTANT TOTAL PAYÉ :", 120, finalY + 5);
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.setFontSize(16);
+  doc.text(formatPrice(transaction.amount), 195, finalY + 5, { align: "right" });
 
-  // Tampon "PAYÉ" (Effet visuel)
-  if (transaction.status === 'approved') {
-      doc.setDrawColor(34, 197, 94); // Green
-      doc.setTextColor(34, 197, 94);
-      doc.setLineWidth(1);
-      doc.roundedRect(20, finalY + 5, 40, 15, 2, 2, 'D');
-      doc.setFontSize(16);
-      doc.setFont("helvetica", "bold");
-      doc.text("PAYÉ", 40, finalY + 14, { align: "center", angle: 15 });
-  }
-
-  // Code d'accès si disponible
+  // Footer & Code d'accès
   if (transaction.code) {
-      finalY += 35;
-      doc.setFillColor(255, 247, 237); // Light Orange
-      doc.setDrawColor(251, 146, 60);
-      doc.roundedRect(15, finalY, 180, 20, 2, 2, 'FD');
-      
-      doc.setTextColor(194, 65, 12);
-      doc.setFontSize(10);
-      doc.text("CODE D'ACCÈS GÉNÉRÉ (Temporaire) :", 25, finalY + 13);
-      doc.setFontSize(14);
-      doc.setFont("courier", "bold");
-      doc.text(transaction.code, 150, finalY + 13, { align: 'right' });
+    doc.setFillColor(236, 253, 245);
+    doc.setDrawColor(5, 150, 105);
+    doc.roundedRect(15, finalY + 15, 180, 25, 3, 3, 'FD');
+    doc.setTextColor(5, 150, 105);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.text("VOTRE CODE D'ACCÈS AUX RESSOURCES :", 105, finalY + 23, { align: "center" });
+    doc.setFontSize(18);
+    doc.text(transaction.code, 105, finalY + 34, { align: "center" });
   }
 
-  // --- 6. PIED DE PAGE ---
-  const footerY = 280;
-  doc.setDrawColor(200);
-  doc.line(15, footerY, 195, footerY);
-  doc.setFontSize(8);
   doc.setTextColor(150);
-  doc.setFont("helvetica", "normal");
-  doc.text("Ce reçu est généré électroniquement par la plateforme KOBLOGIX.", 105, footerY + 5, { align: "center" });
-  doc.text("Merci de votre confiance.", 105, footerY + 9, { align: "center" });
+  doc.setFontSize(8);
+  doc.setFont("helvetica", "italic");
+  doc.text("Ce document sert de preuve de paiement. Pour toute assistance, contactez-nous sur WhatsApp au +228 98 28 65 41.", 105, 285, { align: "center" });
 
-  doc.save(`Reçu_KOBLOGIX_${transaction.id}.pdf`);
+  doc.save(`RECU_KOBLOGIX_${transaction.name.replace(/\s/g, '_')}_${transaction.id.substring(0, 4)}.pdf`);
 };
